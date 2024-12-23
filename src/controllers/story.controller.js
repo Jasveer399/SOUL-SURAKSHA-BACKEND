@@ -125,7 +125,7 @@ const getStories = async (req, res) => {
         take: pageSize,
         skip: skip,
         orderBy: {
-          createdAt: "asc", // Most recent stories first
+          createdAt: "desc", // Most recent stories first
         },
         include: {
           student: {
@@ -134,7 +134,18 @@ const getStories = async (req, res) => {
               studentImage: true,
             },
           },
-          comments: true,
+          comments: {
+            select: {
+              content: true,
+              createdAt: true,
+              student: {
+                select: {
+                  studentImage: true,
+                  userName: true,
+                },
+              },
+            },
+          },
           _count: {
             select: {
               comments: true,
@@ -154,6 +165,12 @@ const getStories = async (req, res) => {
     return res.status(200).json({
       data: stories.map((story) => ({
         ...story,
+        comments: story.comments.map((comment) => ({
+          content: comment.content,
+          studentImage: comment.student.studentImage,
+          userName: comment.student.userName,
+          timeAgo: timeAgo(comment.createdAt),
+        })),
         timeAgo: timeAgo(story.createdAt),
         commentCount: story._count.comments,
         likeCount: story._count.likes,
@@ -195,7 +212,7 @@ const editStory = async (req, res) => {
     const userId = req.user.id; // Assumes you have authentication middleware
 
     // Validate input using Zod
-    const { stotyId,title, content, image, audio } = EditStorySchema.parse({
+    const { stotyId, title, content, image, audio } = EditStorySchema.parse({
       ...req.body,
       stotyId: req.params.stotyId, // Get stotyId from URL parameter
     });
@@ -330,4 +347,44 @@ const deleteStory = async (req, res) => {
   }
 };
 
-export { createStory, getStories, editStory, deleteStory };
+const addComment = async (req, res) => {
+  try {
+    const { stotyId } = req.params;
+    const { comment } = req.body;
+
+    // Find the story
+    const story = await prisma.story.findUnique({
+      where: { id: stotyId },
+    });
+
+    if (!story) {
+      return res.status(404).json({
+        message: "Story not found",
+        status: false,
+      });
+    }
+
+    // Create the comment
+    const newComment = await prisma.comment.create({
+      data: {
+        content: comment,
+        studentId: req.user.id,
+        storyId: stotyId,
+      },
+    });
+
+    return res.status(200).json({
+      data: newComment,
+      message: "Comment added successfully",
+      status: true,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error while adding comment",
+      error: error.message,
+      status: false,
+    });
+  }
+};
+
+export { createStory, getStories, editStory, deleteStory, addComment };
