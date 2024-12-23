@@ -13,26 +13,44 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum UserType {
-  Parent
-  Student
-}
+// enum UserType {
+//   Parent
+//   Student
+// }
 
-model User {
+model Student {
   id           String   @id @default(uuid())
   userName     String
   phone        String
   email        String   @unique
   password     String
-  userType     UserType
+  studentImage String?
   age          Int?
   trustPhoneNo String?
   createdAt    DateTime @default(now())
 
   // Relations
-  posts    Post[]
+  stories  Story[]
   comments Comment[]
   likes    Like[]
+
+  @@index([email])
+}
+
+model Parent {
+  id          String   @id @default(uuid())
+  userName    String
+  phone       String
+  email       String   @unique
+  password    String
+  parentImage String?
+  createdAt   DateTime @default(now())
+
+  // Relations
+  comments Comment[]
+  likes    Like[]
+
+  @@index([email])
 }
 
 model Therapist {
@@ -41,6 +59,7 @@ model Therapist {
   phone          String
   email          String          @unique
   password       String
+  therapistImage String?
   languageType   String[]
   qualifications Qualification[]
   verified       Boolean         @default(false)
@@ -54,38 +73,57 @@ model Qualification {
   therapist   Therapist @relation(fields: [therapistId], references: [id])
 }
 
-model Post {
-  id        String   @id @default(uuid())
+model Story {
+  id        String    @id @default(uuid())
+  title     String? // You might want to add this
   content   String
   image     String?
   audio     String?
-  createdAt DateTime @default(now())
-  
-  authorId String
-  author   User      @relation(fields: [authorId], references: [id])
-  comments Comment[]
-  likes    Like[]
+  createdAt DateTime  @default(now())
+  studentId String
+  student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  comments  Comment[]
+  likes     Like[]
+
+  @@index([studentId])
 }
 
 model Comment {
   id        String   @id @default(uuid())
   content   String
   createdAt DateTime @default(now())
-  authorId  String
-  author    User     @relation(fields: [authorId], references: [id])
 
-  postId String
-  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  // Make these optional and mutually exclusive
+  studentId String?
+  student   Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  parentId  String?
+  parent    Parent?  @relation(fields: [parentId], references: [id], onDelete: Cascade)
+
+  storyId String
+  story   Story  @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@index([storyId])
+  @@index([studentId])
+  @@index([parentId])
 }
 
 model Like {
   id        String   @id @default(uuid())
   createdAt DateTime @default(now())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
 
-  postId String
-  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  // Make these optional and mutually exclusive
+  studentId String?
+  student   Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  parentId  String?
+  parent    Parent?  @relation(fields: [parentId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, postId])
+  storyId String
+  story   Story  @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  // Prevent multiple likes from same user on same story
+  @@unique([studentId, storyId])
+  @@unique([parentId, storyId])
+  @@index([storyId])
+  @@index([studentId])
+  @@index([parentId])
 }

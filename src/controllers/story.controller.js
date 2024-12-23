@@ -1,12 +1,18 @@
 import { z } from "zod";
 import { prisma } from "../DB/prismaClientConfig.js";
+import { timeAgo } from "../utils/Helper.js";
 
 // Zod validation schema for creating a post
-const CreatePostSchema = z.object({
+const CreateStorySchema = z.object({
   content: z
     .string()
-    .min(1, { message: "Post content cannot be empty" })
-    .max(1000, { message: "Post content cannot exceed 1000 characters" }),
+    .min(1, { message: "Story content cannot be empty" })
+    .max(1000, { message: "Story content cannot exceed 1000 characters" }),
+  title: z
+    .string()
+    .min(2, { message: "Title must be at least 2 characters long" })
+    .max(50, { message: "Title cannot exceed 50 characters" })
+    .optional(),
 
   image: z.string().optional(),
 
@@ -14,18 +20,23 @@ const CreatePostSchema = z.object({
 });
 
 // Zod schema for pagination query parameters
-const PostPaginationSchema = z.object({
+const StoryPaginationSchema = z.object({
   page: z.string().transform(Number).default("1"),
   limit: z.string().transform(Number).default("10"),
 });
 
 // Zod validation schema for editing a post
-const EditPostSchema = z.object({
-  postId: z.string().uuid({ message: "Invalid post ID" }),
+const EditStorySchema = z.object({
+  stotyId: z.string().uuid({ message: "Invalid Story ID" }),
+  title: z
+    .string()
+    .min(2, { message: "Title must be at least 2 characters long" })
+    .max(50, { message: "Title cannot exceed 50 characters" })
+    .optional(),
   content: z
     .string()
-    .min(1, { message: "Post content cannot be empty" })
-    .max(1000, { message: "Post content cannot exceed 1000 characters" })
+    .min(1, { message: "Story content cannot be empty" })
+    .max(1000, { message: "Story content cannot exceed 1000 characters" })
     .optional(),
 
   image: z.string().optional().nullable(),
@@ -33,48 +44,49 @@ const EditPostSchema = z.object({
   audio: z.string().optional().nullable(),
 });
 
-const createPost = async (req, res) => {
+const createStory = async (req, res) => {
   try {
     // Extract and validate input using Zod
-    const authorId = req.user?.id;
-    const { content, image, audio } = CreatePostSchema.parse(req.body);
+    const studentId = req.user?.id;
+    const { title, content, image, audio } = CreateStorySchema.parse(req.body);
 
     // Verify that the author (user) exists
-    const authorExists = await prisma.user.findUnique({
+    const authorExists = await prisma.student.findUnique({
       where: {
-        id: authorId,
-        userType: "Student",
+        id: studentId,
       },
     });
 
     if (!authorExists) {
       return res.status(403).json({
-        message: "Only Student users are allowed to create posts",
+        message: "You are not authorized to create a post",
         status: false,
       });
     }
 
     // Create post
-    const createdPost = await prisma.post.create({
+    const createdPost = await prisma.story.create({
       data: {
+        title,
         content,
         image,
         audio,
-        authorId,
+        studentId,
       },
       select: {
         id: true,
+        title: true,
         content: true,
         image: true,
         audio: true,
         createdAt: true,
-        authorId: true,
+        studentId: true,
       },
     });
 
     return res.status(201).json({
       data: createdPost,
-      message: "Post created successfully",
+      message: "Story created successfully",
       status: true,
     });
   } catch (error) {
@@ -97,10 +109,10 @@ const createPost = async (req, res) => {
   }
 };
 
-const getPosts = async (req, res) => {
+const getStories = async (req, res) => {
   try {
     // Validate and parse query parameters
-    const { page, limit } = PostPaginationSchema.parse(req.query);
+    const { page, limit } = StoryPaginationSchema.parse(req.query);
 
     // Calculate pagination details
     const pageNumber = Math.max(page, 1);
@@ -108,21 +120,21 @@ const getPosts = async (req, res) => {
     const skip = (pageNumber - 1) * pageSize;
 
     // Fetch posts with pagination and detailed relations
-    const [posts, totalPosts] = await Promise.all([
-      prisma.post.findMany({
+    const [stories, totalStories] = await Promise.all([
+      prisma.story.findMany({
         take: pageSize,
         skip: skip,
         orderBy: {
-          createdAt: "asc", // Most recent posts first
+          createdAt: "asc", // Most recent stories first
         },
         include: {
-          author: {
+          student: {
             select: {
-              id: true,
               userName: true,
-              userType: true,
+              studentImage: true,
             },
           },
+          comments: true,
           _count: {
             select: {
               comments: true,
@@ -131,30 +143,30 @@ const getPosts = async (req, res) => {
           },
         },
       }),
-      prisma.post.count(),
+      prisma.story.count(),
     ]);
 
     // Calculate pagination metadata
-    const totalPages = Math.ceil(totalPosts / pageSize);
+    const totalPages = Math.ceil(totalStories / pageSize);
     const hasNextPage = pageNumber < totalPages;
     const hasPreviousPage = pageNumber > 1;
 
     return res.status(200).json({
-      data: posts.map((post) => ({
-        ...post,
-        commentCount: post._count.comments,
-        likeCount: post._count.likes,
-        author: post.author,
+      data: stories.map((story) => ({
+        ...story,
+        timeAgo: timeAgo(story.createdAt),
+        commentCount: story._count.comments,
+        likeCount: story._count.likes,
       })),
       pagination: {
         currentPage: pageNumber,
         pageSize,
-        totalPosts,
+        totalStories,
         totalPages,
         hasNextPage,
         hasPreviousPage,
       },
-      message: "Posts retrieved successfully",
+      message: "Stories retrieved successfully",
       status: true,
     });
   } catch (error) {
@@ -170,53 +182,40 @@ const getPosts = async (req, res) => {
     // Handle other errors
     console.error(error);
     return res.status(500).json({
-      message: "Error while retrieving posts",
+      message: "Error while retrieving story",
       error: error.message,
       status: false,
     });
   }
 };
 
-const editPost = async (req, res) => {
+const editStory = async (req, res) => {
   try {
     // Extract user ID from authenticated request
     const userId = req.user.id; // Assumes you have authentication middleware
 
     // Validate input using Zod
-    const { postId, content, image, audio } = EditPostSchema.parse({
+    const { stotyId,title, content, image, audio } = EditStorySchema.parse({
       ...req.body,
-      postId: req.params.postId, // Get postId from URL parameter
+      stotyId: req.params.stotyId, // Get stotyId from URL parameter
     });
 
     // First, verify the post exists and belongs to the user
-    const existingPost = await prisma.post.findUnique({
+    const existingStory = await prisma.story.findUnique({
       where: {
-        id: postId,
-        authorId: userId,
+        id: stotyId,
+        studentId: userId,
       },
       select: {
         id: true,
-        authorId: true,
-        author: {
-          select: {
-            userType: true,
-          },
-        },
+        studentId: true,
       },
     });
 
-    // Check if post exists
-    if (!existingPost) {
+    // Check if story exists
+    if (!existingStory) {
       return res.status(404).json({
-        message: "Post not found or you are not authorized to edit this post",
-        status: false,
-      });
-    }
-
-    // Ensure only Student users can edit their posts
-    if (existingPost.author.userType !== "Student") {
-      return res.status(403).json({
-        message: "Only Student users can edit their posts",
+        message: "Story not found or you are not authorized to edit this post",
         status: false,
       });
     }
@@ -225,6 +224,7 @@ const editPost = async (req, res) => {
     const updateData = {};
     if (content !== undefined) updateData.content = content;
     if (image !== undefined) updateData.image = image;
+    if (title !== undefined) updateData.title = title;
     if (audio !== undefined) updateData.audio = audio;
 
     // If no update fields provided, return error
@@ -236,8 +236,8 @@ const editPost = async (req, res) => {
     }
 
     // Update the post
-    const updatedPost = await prisma.post.update({
-      where: { id: postId },
+    const updatedStory = await prisma.story.update({
+      where: { id: stotyId },
       data: updateData,
       select: {
         id: true,
@@ -245,19 +245,18 @@ const editPost = async (req, res) => {
         image: true,
         audio: true,
         createdAt: true,
-        author: {
+        student: {
           select: {
             id: true,
             userName: true,
-            userType: true,
           },
         },
       },
     });
 
     return res.status(200).json({
-      data: updatedPost,
-      message: "Post updated successfully",
+      data: updatedStory,
+      message: "Story updated successfully",
       status: true,
     });
   } catch (error) {
@@ -273,7 +272,7 @@ const editPost = async (req, res) => {
     // Handle Prisma not found errors
     if (error.code === "P2025") {
       return res.status(404).json({
-        message: "Post not found",
+        message: "Story not found",
         status: false,
       });
     }
@@ -288,4 +287,47 @@ const editPost = async (req, res) => {
   }
 };
 
-export { createPost, getPosts, editPost };
+const deleteStory = async (req, res) => {
+  try {
+    const { stotyId } = req.params;
+
+    // First, verify the story exists and belongs to the user
+    const existingStory = await prisma.story.findUnique({
+      where: {
+        id: stotyId,
+        studentId: req.user.id,
+      },
+      select: {
+        id: true,
+        studentId: true,
+      },
+    });
+
+    // Check if story exists
+    if (!existingStory) {
+      return res.status(404).json({
+        message:
+          "Story not found or you are not authorized to delete this post",
+        status: false,
+      });
+    }
+
+    // Delete the post
+    await prisma.story.delete({
+      where: { id: stotyId },
+    });
+
+    return res.status(200).json({
+      message: "Story deleted successfully",
+      status: true,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error while deleting post",
+      error: error.message,
+      status: false,
+    });
+  }
+};
+
+export { createStory, getStories, editStory, deleteStory };
