@@ -30,9 +30,10 @@ model Student {
   createdAt    DateTime @default(now())
 
   // Relations
-  stories  Story[]
-  comments Comment[]
-  likes    Like[]
+  stories      Story[]
+  comments     Comment[]
+  likes        Like[]
+  Conversation Conversation[]
 
   @@index([email])
 }
@@ -61,17 +62,18 @@ model Therapist {
   password       String
   therapistImage String?
   languageType   String[]
-  qualifications Qualification[]
+  qualifications String?
   verified       Boolean         @default(false)
   createdAt      DateTime        @default(now())
+  Conversation   Conversation[]
 }
 
-model Qualification {
-  id          String    @id @default(uuid())
-  name        String
-  therapistId String
-  therapist   Therapist @relation(fields: [therapistId], references: [id])
-}
+// model Qualification {
+//   id          String    @id @default(uuid())
+//   name        String
+//   therapistId String
+//   therapist   Therapist @relation(fields: [therapistId], references: [id])
+// }
 
 model Story {
   id        String    @id @default(uuid())
@@ -126,4 +128,52 @@ model Like {
   @@index([storyId])
   @@index([studentId])
   @@index([parentId])
+}
+
+model Conversation {
+  id            String   @id @default(uuid())
+  createdAt     DateTime @default(now())
+  lastMessageAt DateTime @default(now()) // Helps with sorting conversations
+  lastMessage   String?  // Last message content
+
+  // Participants (Student and Therapist)
+  studentId   String
+  therapistId String
+  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  therapist   Therapist @relation(fields: [therapistId], references: [id], onDelete: Cascade)
+
+  // Relation to messages
+  messages Message[]
+
+  @@unique([studentId, therapistId]) // Ensures unique conversation between participants
+  @@index([studentId])
+  @@index([therapistId])
+  @@index([lastMessageAt]) // Helps with sorting conversations
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  content   String // The message text
+  createdAt DateTime @default(now())
+
+  // Message status
+  seen   Boolean   @default(false)
+  seenAt DateTime? // Timestamp when message was seen
+
+  // Sender information (can be either Student or Therapist)
+  senderId   String // ID of the sender
+  senderType SenderType // Enum to distinguish between Student and Therapist
+
+  // Conversation relation
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([senderId])
+  @@index([seen])
+}
+
+enum SenderType {
+  STUDENT
+  THERAPIST
 }
