@@ -130,7 +130,7 @@ const getStories = async (req, res) => {
         include: {
           student: {
             select: {
-              userName: true,
+              fullName: true,
               studentImage: true,
             },
           },
@@ -141,7 +141,7 @@ const getStories = async (req, res) => {
               student: {
                 select: {
                   studentImage: true,
-                  userName: true,
+                  fullName: true,
                 },
               },
             },
@@ -168,7 +168,7 @@ const getStories = async (req, res) => {
         comments: story.comments.map((comment) => ({
           content: comment.content,
           studentImage: comment.student.studentImage,
-          userName: comment.student.userName,
+          fullName: comment.student.fullName,
           timeAgo: timeAgo(comment.createdAt),
         })),
         timeAgo: timeAgo(story.createdAt),
@@ -265,7 +265,7 @@ const editStory = async (req, res) => {
         student: {
           select: {
             id: true,
-            userName: true,
+            fullName: true,
           },
         },
       },

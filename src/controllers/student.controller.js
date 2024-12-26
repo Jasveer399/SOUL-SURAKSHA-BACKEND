@@ -5,10 +5,10 @@ import { prisma } from "../DB/prismaClientConfig.js";
 
 // Zod validation schema for user creation
 const CreateUserSchema = z.object({
-  userName: z
+  fullName: z
     .string()
-    .min(2, { message: "Username must be at least 2 characters long" })
-    .max(50, { message: "Username cannot exceed 50 characters" }),
+    .min(2, { message: "fullName must be at least 2 characters long" })
+    .max(50, { message: "fullName cannot exceed 50 characters" }),
 
   phone: z
     .string()
@@ -66,8 +66,9 @@ const accessTokenGenerator = async (userId, userType) => {
 const createStudent = async (req, res) => {
   try {
     // Validate input using Zod
+    console.log("Request body",req.body);
     const {
-      userName,
+      fullName,
       phone,
       email,
       password,
@@ -94,7 +95,7 @@ const createStudent = async (req, res) => {
     // Create user
     const createdStudent = await prisma.student.create({
       data: {
-        userName,
+        fullName,
         phone,
         email,
         studentImage: profileImage,
@@ -104,7 +105,7 @@ const createStudent = async (req, res) => {
       },
       select: {
         id: true,
-        userName: true,
+        fullName: true,
         email: true,
         age: true,
         createdAt: true,

@@ -20,7 +20,7 @@ datasource db {
 
 model Student {
   id           String   @id @default(uuid())
-  userName     String
+  fullName     String
   phone        String
   email        String   @unique
   password     String
@@ -40,7 +40,7 @@ model Student {
 
 model Parent {
   id          String   @id @default(uuid())
-  userName    String
+  fullName    String
   phone       String
   email       String   @unique
   password    String
