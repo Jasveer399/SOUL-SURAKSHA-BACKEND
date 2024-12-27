@@ -1,13 +1,14 @@
 import { z } from "zod";
 import { prisma } from "../DB/prismaClientConfig.js";
 import { timeAgo } from "../utils/Helper.js";
+import { deleteSingleObjectFromS3 } from "./aws.controller.js";
 
 // Zod validation schema for creating a post
 const CreateStorySchema = z.object({
   content: z
     .string()
     .min(1, { message: "Story content cannot be empty" })
-    .max(1000, { message: "Story content cannot exceed 1000 characters" }),
+    .max(2500, { message: "Story content cannot exceed 2500 characters" }),
   title: z
     .string()
     .min(2, { message: "Title must be at least 2 characters long" })
@@ -69,8 +70,8 @@ const createStory = async (req, res) => {
       data: {
         title,
         content,
-        image,
-        audio,
+        image: image || "",
+        audio: audio || "",
         studentId,
       },
       select: {
@@ -330,9 +331,20 @@ const deleteStory = async (req, res) => {
     }
 
     // Delete the post
-    await prisma.story.delete({
+    const deletedStory = await prisma.story.delete({
       where: { id: stotyId },
+      select: {
+        image: true,
+        audio: true,
+      },
     });
+
+    if (deletedStory.image) {
+      await deleteSingleObjectFromS3(deletedStory.image);
+    }
+    if (deletedStory.audio) {
+      await deleteSingleObjectFromS3(deletedStory.audio);
+    }
 
     return res.status(200).json({
       message: "Story deleted successfully",

@@ -3,7 +3,7 @@ import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import { routes } from "./routers/routesIndex.js";
-import { handleSingleUpload} from "./utils/aws.Bucket.js";
+import { handleSingleUpload } from "./controllers/aws.controller.js";
 
 const app = express();
 app.use(
@@ -22,8 +22,6 @@ app.use(
     limit: "16kb",
   })
 );
-
-app.use("/getputurl", handleSingleUpload);
 
 app.use(express.static("public"));
 
