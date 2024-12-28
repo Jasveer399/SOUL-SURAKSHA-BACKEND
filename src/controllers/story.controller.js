@@ -133,6 +133,7 @@ const getStories = async (req, res) => {
         include: {
           student: {
             select: {
+              id: true,
               fullName: true,
               studentImage: true,
             },
@@ -203,6 +204,113 @@ const getStories = async (req, res) => {
     console.error(error);
     return res.status(500).json({
       message: "Error while retrieving story",
+      error: error.message,
+      status: false,
+    });
+  }
+};
+
+const getCurrentUserStories = async (req, res) => {
+  try {
+    // Validate and parse query parameters
+    const { page, limit } = StoryPaginationSchema.parse(req.query);
+
+    // Calculate pagination details
+    const pageNumber = Math.max(page, 1);
+    const pageSize = Math.min(limit, 10); // Ensure max 10 posts per request
+    const skip = (pageNumber - 1) * pageSize;
+
+    // Get the current user's ID from the authenticated session
+    const userId = req.user.id;
+
+    // Fetch current user's stories with pagination and detailed relations
+    const [stories, totalStories] = await Promise.all([
+      prisma.story.findMany({
+        where: {
+          studentId: userId, // Filter stories by current user's ID
+        },
+        take: pageSize,
+        skip: skip,
+        orderBy: {
+          createdAt: "desc", // Most recent stories first
+        },
+        include: {
+          student: {
+            select: {
+              fullName: true,
+              studentImage: true,
+            },
+          },
+          comments: {
+            select: {
+              content: true,
+              createdAt: true,
+              student: {
+                select: {
+                  studentImage: true,
+                  fullName: true,
+                },
+              },
+            },
+          },
+          _count: {
+            select: {
+              comments: true,
+              likes: true,
+            },
+          },
+        },
+      }),
+      prisma.story.count({
+        where: {
+          studentId: userId, // Count only current user's stories
+        },
+      }),
+    ]);
+
+    // Calculate pagination metadata
+    const totalPages = Math.ceil(totalStories / pageSize);
+    const hasNextPage = pageNumber < totalPages;
+    const hasPreviousPage = pageNumber > 1;
+
+    return res.status(200).json({
+      data: stories.map((story) => ({
+        ...story,
+        comments: story.comments.map((comment) => ({
+          content: comment.content,
+          studentImage: comment.student.studentImage,
+          fullName: comment.student.fullName,
+          timeAgo: timeAgo(comment.createdAt),
+        })),
+        timeAgo: timeAgo(story.createdAt),
+        commentCount: story._count.comments,
+        likeCount: story._count.likes,
+      })),
+      pagination: {
+        currentPage: pageNumber,
+        pageSize,
+        totalStories,
+        totalPages,
+        hasNextPage,
+        hasPreviousPage,
+      },
+      message: "Your stories retrieved successfully",
+      status: true,
+    });
+  } catch (error) {
+    // Handle Zod validation errors
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        message: "Validation Error",
+        errors: error.errors.map((e) => e.message),
+        status: false,
+      });
+    }
+
+    // Handle other errors
+    console.error(error);
+    return res.status(500).json({
+      message: "Error while retrieving your stories",
       error: error.message,
       status: false,
     });
@@ -416,4 +524,11 @@ const addComment = async (req, res) => {
   }
 };
 
-export { createStory, getStories, editStory, deleteStory, addComment };
+export {
+  createStory,
+  getStories,
+  editStory,
+  deleteStory,
+  addComment,
+  getCurrentUserStories,
+};
