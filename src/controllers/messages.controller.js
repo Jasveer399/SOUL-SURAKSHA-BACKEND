@@ -1,9 +1,14 @@
 import { prisma } from "../DB/prismaClientConfig.js";
+import { getRecipientSocketId, io } from "../socket/socket.js";
 
 const sendMessage = async (req, res) => {
   try {
-    const { recipientId, message, senderType } = req.body;
+    const { recipientId, message } = req.body;
     const senderId = req.user.id;
+    const senderType =
+      req.user.userType !== "parent" && req.user.userType === "student"
+        ? "STUDENT"
+        : "THERAPIST";
 
     // First find or create conversation
     let conversation = await prisma.conversation.findFirst({
@@ -59,13 +64,10 @@ const sendMessage = async (req, res) => {
       },
     });
 
-    // If using Socket.IO
-    // if (req.io) {
-    //   const recipientSocketId = getRecipientSocketId(recipientId);
-    //   if (recipientSocketId) {
-    //     req.io.to(recipientSocketId).emit("newMessage", newMessage);
-    //   }
-    // }
+      const recipientSocketId = getRecipientSocketId(recipientId);
+      if (recipientSocketId) {
+        io.to(recipientSocketId).emit("newMessage", newMessage);
+      }
 
     return res.status(200).json({
       data: newMessage,
@@ -124,28 +126,35 @@ const getMessages = async (req, res) => {
       orderBy: {
         createdAt: "asc",
       },
-      include: {
-        conversation: {
-          include: {
-            student: {
-              select: {
-                id: true,
-                userName: true,
-              },
-            },
-            therapist: {
-              select: {
-                id: true,
-                userName: true,
-              },
-            },
-          },
-        },
+      select: {
+        id: true,
+        content: true,
+        senderId: true,
+        senderType: true,
+        seen: true,
       },
+      // include: {
+      //   conversation: {
+      //     include: {
+      //       student: {
+      //         select: {
+      //           id: true,
+      //           fullName: true,
+      //         },
+      //       },
+      //       therapist: {
+      //         select: {
+      //           id: true,
+      //           userName: true,
+      //         },
+      //       },
+      //     },
+      //   },
+      // },
     });
 
     res.status(200).json({
-      data: messages,
+      data: { data: messages, userType },
       message: "Messages retrieved successfully",
       status: true,
     });
@@ -161,7 +170,10 @@ const getMessages = async (req, res) => {
 
 const getConversation = async (req, res) => {
   const userId = req.user.id;
-  const userType = req.user.userType; // Assuming we know if user is STUDENT or THERAPIST
+  const userType = req.user?.userType?.toUpperCase();
+
+  console.log("userId: >>", userId);
+  console.log("userType: >>", userType);
 
   try {
     const conversations = await prisma.conversation.findMany({
@@ -170,63 +182,46 @@ const getConversation = async (req, res) => {
           ? { studentId: userId }
           : { therapistId: userId },
       include: {
-        student: {
-          select: {
-            id: true,
-            userName: true,
-            studentImage: true,
-            email: true,
+        // Only include therapist data if user is a student
+        ...(userType === "STUDENT" && {
+          therapist: {
+            select: {
+              id: true,
+              userName: true,
+              therapistImage: true,
+              email: true,
+            },
           },
-        },
-        therapist: {
-          select: {
-            id: true,
-            userName: true,
-            therapistImage: true,
-            email: true,
+        }),
+        // Only include student data if user is not a student (i.e., is a therapist)
+        ...(userType !== "STUDENT" && {
+          student: {
+            select: {
+              id: true,
+              fullName: true,
+              studentImage: true,
+              email: true,
+            },
           },
-        },
-        messages: {
-          orderBy: {
-            createdAt: "desc",
-          },
-          take: 1, // Get only the last message
-        },
+        }),
       },
       orderBy: {
         lastMessageAt: "desc",
       },
     });
 
-    // Transform the response to match the expected format
-    // and remove the current user from the data
-    const transformedConversations = conversations.map((conv) => {
-      const otherUser = userType === "STUDENT" ? conv.therapist : conv.student;
-      return {
-        id: conv.id,
-        lastMessage: conv.messages[0] || null,
-        otherUser: {
-          id: otherUser.id,
-          userName: otherUser.userName,
-          profilePic:
-            userType === "STUDENT"
-              ? otherUser.therapistImage
-              : otherUser.studentImage,
-          email: otherUser.email,
-        },
-        createdAt: conv.createdAt,
-        lastMessageAt: conv.lastMessageAt,
-      };
-    });
-
     res.status(200).json({
-      data: transformedConversations,
+      data: conversations,
       message: "Conversations retrieved successfully",
       status: true,
     });
   } catch (error) {
     console.error("Error in getConversations:", error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({
+      error: error.message,
+      message: "Failed to retrieve conversations",
+      status: false,
+    });
   }
 };
 

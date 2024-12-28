@@ -3,9 +3,8 @@ import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import { routes } from "./routers/routesIndex.js";
-import { handleSingleUpload } from "./controllers/aws.controller.js";
+import { app, server } from "./socket/socket.js"
 
-const app = express();
 app.use(
   cors({
     origin: process.env.CORS_ORIGIN,
@@ -29,6 +28,6 @@ app.use(cookieParser());
 
 app.use(routes);
 
-app.listen(process.env.PORT || 3000, () =>
+server.listen(process.env.PORT || 3000, () =>
   console.log("Server is running on PORT:", process.env.PORT || 3000)
 );
