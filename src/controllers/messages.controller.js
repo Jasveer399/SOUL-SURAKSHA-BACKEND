@@ -1,4 +1,5 @@
 import { prisma } from "../DB/prismaClientConfig.js";
+import { getRecipientSocketId, io } from "../socket/socket.js";
 
 const sendMessage = async (req, res) => {
   try {
@@ -63,13 +64,10 @@ const sendMessage = async (req, res) => {
       },
     });
 
-    // If using Socket.IO
-    // if (req.io) {
-    //   const recipientSocketId = getRecipientSocketId(recipientId);
-    //   if (recipientSocketId) {
-    //     req.io.to(recipientSocketId).emit("newMessage", newMessage);
-    //   }
-    // }
+      const recipientSocketId = getRecipientSocketId(recipientId);
+      if (recipientSocketId) {
+        io.to(recipientSocketId).emit("newMessage", newMessage);
+      }
 
     return res.status(200).json({
       data: newMessage,
