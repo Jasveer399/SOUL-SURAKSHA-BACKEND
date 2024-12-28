@@ -37,12 +37,14 @@ const EditStorySchema = z.object({
   content: z
     .string()
     .min(1, { message: "Story content cannot be empty" })
-    .max(1000, { message: "Story content cannot exceed 1000 characters" })
+    .max(2500, { message: "Story content cannot exceed 2500 characters" })
     .optional(),
 
   image: z.string().optional().nullable(),
+  imageBeforeChange: z.string().optional().nullable(),
 
   audio: z.string().optional().nullable(),
+  audioBeforeChange: z.string().optional().nullable(),
 });
 
 const createStory = async (req, res) => {
@@ -213,7 +215,15 @@ const editStory = async (req, res) => {
     const userId = req.user.id; // Assumes you have authentication middleware
 
     // Validate input using Zod
-    const { stotyId, title, content, image, audio } = EditStorySchema.parse({
+    const {
+      stotyId,
+      title,
+      content,
+      image,
+      audio,
+      imageBeforeChange,
+      audioBeforeChange,
+    } = EditStorySchema.parse({
       ...req.body,
       stotyId: req.params.stotyId, // Get stotyId from URL parameter
     });
@@ -251,6 +261,13 @@ const editStory = async (req, res) => {
         message: "No update fields provided",
         status: false,
       });
+    }
+
+    if (imageBeforeChange) {
+      await deleteSingleObjectFromS3(imageBeforeChange);
+    }
+    if (audioBeforeChange) {
+      await deleteSingleObjectFromS3(audioBeforeChange);
     }
 
     // Update the post
