@@ -64,10 +64,10 @@ const sendMessage = async (req, res) => {
       },
     });
 
-      const recipientSocketId = getRecipientSocketId(recipientId);
-      if (recipientSocketId) {
-        io.to(recipientSocketId).emit("newMessage", newMessage);
-      }
+    const recipientSocketId = getRecipientSocketId(recipientId);
+    if (recipientSocketId) {
+      io.to(recipientSocketId).emit("newMessage", newMessage);
+    }
 
     return res.status(200).json({
       data: newMessage,
@@ -204,14 +204,39 @@ const getConversation = async (req, res) => {
             },
           },
         }),
+        messages: {
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 1,
+        },
+        _count: {
+          select: {
+            messages: {
+              where: {
+                seen: false,
+                NOT: {
+                  senderId: userId // Don't count user's own messages
+                }
+              }
+            }
+          }
+        }
       },
       orderBy: {
         lastMessageAt: "desc",
       },
     });
 
+    // Transform the response to include unread count
+    const transformedConversations = conversations.map(conv => ({
+      ...conv,
+      unreadCount: conv._count.messages,
+      _count: undefined // Remove the _count field from response
+    }));
+
     res.status(200).json({
-      data: conversations,
+      data: transformedConversations,
       message: "Conversations retrieved successfully",
       status: true,
     });
