@@ -118,7 +118,6 @@ model Like {
   student   Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
   parentId  String?
   parent    Parent?  @relation(fields: [parentId], references: [id], onDelete: Cascade)
-
   storyId String
   story   Story  @relation(fields: [storyId], references: [id], onDelete: Cascade)
 

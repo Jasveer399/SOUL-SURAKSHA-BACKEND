@@ -116,6 +116,8 @@ const getStories = async (req, res) => {
   try {
     // Validate and parse query parameters
     const { page, limit } = StoryPaginationSchema.parse(req.query);
+    const userId = req.user?.id || null;
+    const role = req.role || null;
 
     // Calculate pagination details
     const pageNumber = Math.max(page, 1);
@@ -138,18 +140,32 @@ const getStories = async (req, res) => {
               studentImage: true,
             },
           },
-          comments: {
-            select: {
-              content: true,
-              createdAt: true,
-              student: {
-                select: {
-                  studentImage: true,
-                  fullName: true,
-                },
+          // Only include likes check if user is logged in
+          ...(userId && {
+            likes: {
+              where: {
+                OR: [
+                  { studentId: role === "student" ? userId : undefined },
+                  { parentId: role === "parent" ? userId : undefined },
+                ],
+              },
+              select: {
+                id: true,
               },
             },
-          },
+          }),
+          // comments: {
+          //   select: {
+          //     content: true,
+          //     createdAt: true,
+          //     student: {
+          //       select: {
+          //         studentImage: true,
+          //         fullName: true,
+          //       },
+          //     },
+          //   },
+          // },
           _count: {
             select: {
               comments: true,
@@ -169,15 +185,16 @@ const getStories = async (req, res) => {
     return res.status(200).json({
       data: stories.map((story) => ({
         ...story,
-        comments: story.comments.map((comment) => ({
-          content: comment.content,
-          studentImage: comment.student.studentImage,
-          fullName: comment.student.fullName,
-          timeAgo: timeAgo(comment.createdAt),
-        })),
+        // comments: story.comments.map((comment) => ({
+        //   content: comment.content,
+        //   studentImage: comment.student.studentImage,
+        //   fullName: comment.student.fullName,
+        //   timeAgo: timeAgo(comment.createdAt),
+        // })),
         timeAgo: timeAgo(story.createdAt),
         commentCount: story._count.comments,
         likeCount: story._count.likes,
+        isLiked: userId ? (story.likes?.length > 0) : false,
       })),
       pagination: {
         currentPage: pageNumber,
@@ -508,6 +525,17 @@ const addComment = async (req, res) => {
         studentId: req.user.id,
         storyId: stotyId,
       },
+      select: {
+        content: true,
+        createdAt: true,
+        student: {
+          select: {
+            id: true,
+            fullName: true,
+            studentImage: true,
+          },
+        },
+      },
     });
 
     return res.status(200).json({
@@ -524,6 +552,155 @@ const addComment = async (req, res) => {
   }
 };
 
+const getStoryComments = async (req, res) => {
+  try {
+    const { storyId, page = 1, limit = 10 } = req.query;
+
+    // Convert to numbers and validate
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+
+    // Validate page and limit
+    if (isNaN(pageNum) || isNaN(limitNum) || pageNum < 1 || limitNum < 1) {
+      return res.status(400).json({
+        message: "Invalid pagination parameters",
+        status: false,
+      });
+    }
+
+    // Calculate skip value for pagination
+    const skip = (pageNum - 1) * limitNum;
+
+    // Get total count of comments
+    const totalComments = await prisma.comment.count({
+      where: { storyId },
+    });
+
+    // Get paginated comments
+    const storyComments = await prisma.story.findFirstOrThrow({
+      where: { id: storyId },
+      select: {
+        comments: {
+          skip,
+          take: limitNum,
+          select: {
+            content: true,
+            createdAt: true,
+            student: {
+              select: {
+                id: true,
+                fullName: true,
+                studentImage: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: "desc", // Most recent comments first
+          },
+        },
+      },
+    });
+
+    // Calculate pagination metadata
+    const totalPages = Math.ceil(totalComments / limitNum);
+    const hasNextPage = pageNum < totalPages;
+    const hasPrevPage = pageNum > 1;
+
+    return res.status(200).json({
+      data: storyComments.comments,
+      pagination: {
+        currentPage: pageNum,
+        totalPages,
+        totalComments,
+        hasNextPage,
+        hasPrevPage,
+        limit: limitNum,
+      },
+      message: "Comments retrieved successfully",
+      status: true,
+    });
+  } catch (error) {
+    if (error.code === "P2025") {
+      return res.status(404).json({
+        message: "Story not found",
+        status: false,
+      });
+    }
+
+    return res.status(500).json({
+      message: "Error while getting comments",
+      error: error.message,
+      status: false,
+    });
+  }
+};
+
+const toggleStoryLike = async (req, res) => {
+  try {
+    const { storyId } = req.params;
+    const userId = req.user.id;
+    const userRole = req.role;
+
+    // Verify story exists
+    const story = await prisma.story.findUnique({
+      where: { id: storyId },
+    });
+
+    if (!story) {
+      return res.status(404).json({
+        message: "Story not found",
+        status: false,
+      });
+    }
+
+    // Check for existing like
+    const existingLike = await prisma.like.findFirst({
+      where: {
+        storyId,
+        ...(userRole === "student"
+          ? { studentId: userId }
+          : { parentId: userId }),
+      },
+    });
+
+    if (existingLike) {
+      // Unlike if like exists
+      await prisma.like.delete({
+        where: { id: existingLike.id },
+      });
+
+      return res.status(200).json({
+        message: "Successfully unliked the story",
+        status: true,
+        liked: false,
+      });
+    }
+
+    // Create new like
+    await prisma.like.create({
+      data: {
+        storyId,
+        ...(userRole === "student"
+          ? { studentId: userId }
+          : { parentId: userId }),
+      },
+    });
+
+    return res.status(200).json({
+      message: "Successfully liked the story",
+      status: true,
+      liked: true,
+    });
+  } catch (error) {
+    console.error("Toggle Like Error:", error);
+    return res.status(500).json({
+      message: "Error while toggling like",
+      status: false,
+      error: error.message,
+    });
+  }
+};
+
 export {
   createStory,
   getStories,
@@ -531,4 +708,6 @@ export {
   deleteStory,
   addComment,
   getCurrentUserStories,
+  getStoryComments,
+  toggleStoryLike,
 };
