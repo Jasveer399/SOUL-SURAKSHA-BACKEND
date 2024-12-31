@@ -2,6 +2,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { generateAccessToken } from "../utils/generateAccessToken.js";
 import { prisma } from "../DB/prismaClientConfig.js";
+import { deleteSingleObjectFromS3 } from "./aws.controller.js";
 
 // Zod validation schema for user creation
 const CreateUserSchema = z.object({
@@ -32,6 +33,20 @@ const CreateUserSchema = z.object({
   profileImage: z.string().optional(),
 
   trustPhoneNo: z.string().optional(),
+});
+
+const EditUserSchema = z.object({
+  fullName: z
+    .string()
+    .min(2, { message: "fullName must be at least 2 characters long" })
+    .max(50, { message: "fullName cannot exceed 50 characters" }),
+
+  age: z.number().int().min(0).max(120).optional(),
+
+  profileImage: z.string().optional(),
+
+  trustPhoneNo: z.string().optional(),
+  imageBeforeChange: z.string().optional().nullable(),
 });
 
 // Zod validation schema for user login
@@ -66,7 +81,7 @@ const accessTokenGenerator = async (userId, userType) => {
 const createStudent = async (req, res) => {
   try {
     // Validate input using Zod
-    console.log("Request body",req.body);
+    console.log("Request body", req.body);
     const {
       fullName,
       phone,
@@ -131,6 +146,57 @@ const createStudent = async (req, res) => {
     console.error(error);
     return res.status(500).json({
       message: "Error while creating user",
+      error: error.message,
+      status: false,
+    });
+  }
+};
+
+const editStudent = async (req, res) => {
+  try {
+    const { fullName, age, profileImage, trustPhoneNo, imageBeforeChange } =
+      EditUserSchema.parse(req.body);
+
+    const studentId = req.user.id;
+
+    const updatedStudent = await prisma.student.update({
+      where: { id: studentId },
+      data: {
+        fullName,
+        age,
+        studentImage: profileImage,
+        trustPhoneNo,
+      },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        age: true,
+        createdAt: true,
+      },
+    });
+    if (imageBeforeChange) {
+      await deleteSingleObjectFromS3(imageBeforeChange);
+    }
+    return res.status(200).json({
+      data: updatedStudent,
+      message: "User updated successfully",
+      status: true,
+    });
+  } catch (error) {
+    // Handle Zod validation errors
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        message: "Validation Error",
+        errors: error.errors.map((e) => e.message),
+        status: false,
+      });
+    }
+
+    // Handle other errors
+    console.error(error);
+    return res.status(500).json({
+      message: "Error while updating user",
       error: error.message,
       status: false,
     });
@@ -264,4 +330,10 @@ const getStudentProfile = async (req, res) => {
   }
 };
 
-export { createStudent, loginStudent, logoutStudent, getStudentProfile };
+export {
+  createStudent,
+  loginStudent,
+  logoutStudent,
+  getStudentProfile,
+  editStudent,
+};

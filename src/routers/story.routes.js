@@ -5,6 +5,7 @@ import {
   createStory,
   deleteStory,
   editStory,
+  getCurrentUserStories,
   getStories,
 } from "../controllers/story.controller.js";
 
@@ -15,5 +16,10 @@ router.get("/getStories", getStories);
 router.put("/editstory/:stotyId", verifyJWT(["student"]), editStory);
 router.delete("/deletestory/:stotyId", verifyJWT(["student"]), deleteStory);
 router.post("/addcomment/:stotyId", verifyJWT(["student"]), addComment);
+router.get(
+  "/getCurrentUserStories",
+  verifyJWT(["student"]),
+  getCurrentUserStories
+);
 
 export { router as storyRoutes };
