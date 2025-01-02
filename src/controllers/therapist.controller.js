@@ -1,7 +1,11 @@
 import { z } from "zod";
 import { prisma } from "../DB/prismaClientConfig.js";
-import { decryptPassword, encryptPassword } from "../utils/passwordEncryptDescrypt.js";
+import {
+  decryptPassword,
+  encryptPassword,
+} from "../utils/passwordEncryptDescrypt.js";
 import { generateAccessToken } from "../utils/generateAccessToken.js";
+import { deleteSingleObjectFromS3 } from "./aws.controller.js";
 
 const createdTherapistSchema = z.object({
   userName: z
@@ -34,6 +38,25 @@ const createdTherapistSchema = z.object({
 const TherapistLoginSchema = z.object({
   email: z.string().email({ message: "Invalid email address" }),
   password: z.string().min(1, { message: "Password is required" }),
+});
+
+const EditUserSchema = z.object({
+  userName: z
+    .string()
+    .min(2, { message: "fullName must be at least 2 characters long" })
+    .max(50, { message: "fullName cannot exceed 50 characters" }),
+
+  qualifications: z.string().optional(),
+
+  languageType: z.array(z.string()).optional(),
+
+  profileImage: z.string().optional(),
+
+  bio: z.string().optional(),
+  specialization: z.string().optional(),
+  experience: z.string().optional(),
+
+  imageBeforeChange: z.string().optional().nullable(),
 });
 
 const accessTokenGenerator = async (id) => {
@@ -146,6 +169,76 @@ const createTherapist = async (req, res) => {
   }
 };
 
+const editTherapist = async (req, res) => {
+  try {
+    const {
+      userName,
+      languageType,
+      profileImage,
+      qualifications,
+      bio,
+      specialization,
+      experience,
+      imageBeforeChange,
+    } = EditUserSchema.parse(req.body);
+
+    console.log("req.body:>>", req.body);
+
+    const therapistId = req.user.id;
+
+    const updatedTherapist = await prisma.therapist.update({
+      where: { id: therapistId },
+      data: {
+        userName,
+        languageType,
+        therapistImage: profileImage,
+        qualifications,
+        bio,
+        specialization,
+        experience: parseFloat(experience),
+      },
+      select: {
+        id: true,
+        userName: true,
+        email: true,
+        languageType: true,
+        qualifications: true,
+        bio: true,
+        specialization: true,
+        experience: true,
+        createdAt: true,
+      },
+    });
+
+    if (imageBeforeChange) {
+      await deleteSingleObjectFromS3(imageBeforeChange);
+    }
+
+    return res.status(200).json({
+      data: updatedTherapist,
+      message: "User updated successfully",
+      status: true,
+    });
+  } catch (error) {
+    // Handle Zod validation errors
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        message: "Validation Error",
+        errors: error.errors.map((e) => e.message),
+        status: false,
+      });
+    }
+
+    // Handle other errors
+    console.error(error);
+    return res.status(500).json({
+      message: "Error while updating user",
+      error: error.message,
+      status: false,
+    });
+  }
+};
+
 const loginTherapist = async (req, res) => {
   try {
     // Validate input using Zod
@@ -164,7 +257,10 @@ const loginTherapist = async (req, res) => {
     }
 
     // Verify password
-    const isPasswordCorrect = await decryptPassword(password, therapist.password);
+    const isPasswordCorrect = await decryptPassword(
+      password,
+      therapist.password
+    );
 
     if (!isPasswordCorrect) {
       return res.status(401).json({
@@ -228,4 +324,33 @@ const logoutTherapist = async (req, res) => {
   }
 };
 
-export { createTherapist, loginTherapist, logoutTherapist };
+const getAllTherapist = async (req, res) => {
+  try {
+    const therapists = await prisma.therapist.findMany({
+      select: {
+        id: true,
+        userName: true,
+        specialization: true,
+        therapistImage: true,
+        experience: true,
+        bio: true,
+        languageType: true,
+        qualifications: true,
+      },
+    });
+    return res.status(200).json({
+      data: therapists,
+      message: "All Therapists fetched successfully",
+      status: true,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      message: "Error while fetching all therapists",
+      error: error.message,
+      status: false,
+    });
+  }
+};
+
+export { createTherapist, loginTherapist, logoutTherapist, editTherapist, getAllTherapist };

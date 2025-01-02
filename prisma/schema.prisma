@@ -63,6 +63,9 @@ model Therapist {
   therapistImage String?
   languageType   String[]
   qualifications String?
+  specialization String?
+  experience     Float?
+  bio            String?
   verified       Boolean         @default(false)
   createdAt      DateTime        @default(now())
   Conversation   Conversation[]
