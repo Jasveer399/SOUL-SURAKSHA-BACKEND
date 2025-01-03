@@ -7,12 +7,16 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { s3Client } from "../utils/aws.Config.js";
 
 const BUCKET_NAME = "soul-suraksha";
-const FOLDER_PATH = "Uploads/Story-Images";
+let FOLDER_PATH = "Uploads/Story-Images";
 
-const generateUploadUrl = async (fileType) => {
+const generateUploadUrl = async (fileType, folder_name) => {
   const fileName = `image-${Date.now()}-${Math.random()
     .toString(36)
     .substring(7)}.${fileType.split("/")[1]}`;
+
+  if (folder_name) {
+    FOLDER_PATH = `Uploads/${folder_name}`;
+  }
 
   const command = new PutObjectCommand({
     Bucket: BUCKET_NAME,
@@ -82,7 +86,7 @@ export const deleteMultipleObjectsFromS3 = async (fileNames) => {
 // Handler for single file deletion
 async function handleSingleDelete(req, res) {
   try {
-    const { fileName } = req.params;
+    const { fileName } = req.body;
     const result = await deleteSingleObjectFromS3(fileName);
     res.status(200).json(result);
   } catch (error) {
@@ -103,9 +107,9 @@ async function handleMultipleDelete(req, res) {
 
 async function handleSingleUpload(req, res) {
   try {
-    const { fileType } = req.query; // expect 'image/jpeg' or 'image/png' etc.
+    const { fileType,folder_name } = req.query; // expect 'image/jpeg' or 'image/png' etc.
     console.log("type", fileType);
-    const uploadData = await generateUploadUrl(fileType);
+    const uploadData = await generateUploadUrl(fileType,folder_name);
     res.status(200).json(uploadData);
   } catch (error) {
     res.status(500).json({ error: error.message });
