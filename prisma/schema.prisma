@@ -34,6 +34,7 @@ model Student {
   comments     Comment[]
   likes        Like[]
   Conversation Conversation[]
+  Review       Review[]
 
   @@index([email])
 }
@@ -55,10 +56,10 @@ model Parent {
 }
 
 model Therapist {
-  id             String          @id @default(uuid())
+  id             String         @id @default(uuid())
   userName       String
   phone          String
-  email          String          @unique
+  email          String         @unique
   password       String
   therapistImage String?
   languageType   String[]
@@ -66,9 +67,11 @@ model Therapist {
   specialization String?
   experience     Float?
   bio            String?
-  verified       Boolean         @default(false)
-  createdAt      DateTime        @default(now())
+  verified       Boolean        @default(false)
+  ratings        Float?         @default(0)
+  createdAt      DateTime       @default(now())
   Conversation   Conversation[]
+  Review         Review[]
 }
 
 // model Qualification {
@@ -121,8 +124,8 @@ model Like {
   student   Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
   parentId  String?
   parent    Parent?  @relation(fields: [parentId], references: [id], onDelete: Cascade)
-  storyId String
-  story   Story  @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  storyId   String
+  story     Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
 
   // Prevent multiple likes from same user on same story
   @@unique([studentId, storyId])
@@ -136,7 +139,7 @@ model Conversation {
   id            String   @id @default(uuid())
   createdAt     DateTime @default(now())
   lastMessageAt DateTime @default(now()) // Helps with sorting conversations
-  lastMessage   String?  // Last message content
+  lastMessage   String? // Last message content
 
   // Participants (Student and Therapist)
   studentId   String
@@ -178,4 +181,22 @@ model Message {
 enum SenderType {
   STUDENT
   THERAPIST
+}
+
+model Review {
+  id        String   @id @default(uuid())
+  title     String
+  review    String
+  rating    Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Make these optional and mutually exclusive
+  studentId   String?
+  Student     Student?   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  therapistId String?
+  Therapist   Therapist? @relation(fields: [therapistId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([therapistId])
 }

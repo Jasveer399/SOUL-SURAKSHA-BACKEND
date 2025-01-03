@@ -5,6 +5,7 @@ import therapistRoutes from "./therapist.routes.js";
 import messagesRoutes from "./messages.routes.js";
 import awsRoutes from "./aws.routes.js";
 import { userRoutes } from "./user.routes.js";
+import reviewRoutes from "./review.routes.js";
 
 const router = Router();
 
@@ -14,5 +15,6 @@ router.use("/api/v1/therapist", therapistRoutes);
 router.use("/api/v1/messages", messagesRoutes);
 router.use("/api/v1/aws", awsRoutes);
 router.use("/api/v1/user", userRoutes);
+router.use("/api/v1/review", reviewRoutes);
 
 export { router as routes };

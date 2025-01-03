@@ -324,7 +324,7 @@ const logoutTherapist = async (req, res) => {
   }
 };
 
-const getAllTherapist = async (req, res) => {
+const getAllTherapist = async (_, res) => {
   try {
     const therapists = await prisma.therapist.findMany({
       select: {
@@ -336,6 +336,23 @@ const getAllTherapist = async (req, res) => {
         bio: true,
         languageType: true,
         qualifications: true,
+        ratings: true,
+        Review: {
+          select: {
+            title: true,
+            review: true,
+            rating: true,
+            createdAt: true,
+            Student: {
+              select: {
+                fullName: true,
+              }
+            }
+          },
+          orderBy: {
+            createdAt: 'desc'
+          },
+        },
       },
     });
     return res.status(200).json({
