@@ -34,6 +34,7 @@ model Student {
   comments     Comment[]
   likes        Like[]
   Conversation Conversation[]
+  Review       Review[]
 
   @@index([email])
 }
@@ -63,9 +64,14 @@ model Therapist {
   therapistImage String?
   languageType   String[]
   qualifications String?
+  specialization String?
+  experience     Float?
+  bio            String?
   verified       Boolean        @default(false)
+  ratings        Float?         @default(0)
   createdAt      DateTime       @default(now())
   Conversation   Conversation[]
+  Review         Review[]
 }
 
 // model Qualification {
@@ -184,4 +190,22 @@ model Message {
 enum SenderType {
   STUDENT
   THERAPIST
+}
+
+model Review {
+  id        String   @id @default(uuid())
+  title     String
+  review    String
+  rating    Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Make these optional and mutually exclusive
+  studentId   String?
+  Student     Student?   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  therapistId String?
+  Therapist   Therapist? @relation(fields: [therapistId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([therapistId])
 }

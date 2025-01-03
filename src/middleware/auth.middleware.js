@@ -29,6 +29,24 @@ export const verifyJWT = (roles) => async (req, res, next) => {
       if (!user && roles.includes("therapist")) {
         user = await prisma.therapist.findUnique({
           where: { id: decodedToken?.id },
+          include: {
+            Review: {
+              select: {
+                title: true,
+                review: true,
+                rating: true,
+                createdAt: true,
+                Student: {
+                  select: {
+                    fullName: true,
+                  },
+                },
+              },
+              orderBy: {
+                createdAt: "desc",
+              },
+            },
+          },
         });
       }
       if (!user && roles.includes("parent")) {
@@ -39,6 +57,24 @@ export const verifyJWT = (roles) => async (req, res, next) => {
     } else if (roles.includes("therapist")) {
       user = await prisma.therapist.findUnique({
         where: { id: decodedToken?.id },
+        include: {
+          Review: {
+            select: {
+              title: true,
+              review: true,
+              rating: true,
+              createdAt: true,
+              Student: {
+                select: {
+                  fullName: true,
+                },
+              },
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+          },
+        },
       });
       if (!user && roles.includes("parent")) {
         user = await prisma.parent.findUnique({
@@ -65,7 +101,7 @@ export const verifyJWT = (roles) => async (req, res, next) => {
       where: { id: user.id },
     });
 
-    req.user = {...user, userType: decodedToken.userType};
+    req.user = { ...user, userType: decodedToken.userType };
     req.role = isStudent ? "student" : isTherapist ? "therapist" : "parent";
     next();
   } catch (error) {
