@@ -7,6 +7,7 @@ import awsRoutes from "./aws.routes.js";
 import { userRoutes } from "./user.routes.js";
 import reviewRoutes from "./review.routes.js";
 import { blogRoutes } from "./blog.routes.js";
+import { donationRoutes } from "./donation.routes.js";
 
 const router = Router();
 
@@ -18,5 +19,6 @@ router.use("/api/v1/aws", awsRoutes);
 router.use("/api/v1/user", userRoutes);
 router.use("/api/v1/review", reviewRoutes);
 router.use("/api/v1/blog", blogRoutes);
+router.use("/api/v1/donation", donationRoutes);
 
 export { router as routes };
