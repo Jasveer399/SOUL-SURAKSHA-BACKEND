@@ -1,4 +1,4 @@
-import { prisma } from "../DB/prismaClientConfig.js";
+import { prisma } from "../db/prismaClientConfig.js";
 
 const addReview = async (req, res) => {
   try {

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { prisma } from "../DB/prismaClientConfig.js";
+import { prisma } from "../db/prismaClientConfig.js";
 import { timeAgo } from "../utils/Helper.js";
 import { deleteSingleObjectFromS3 } from "./aws.controller.js";
 
