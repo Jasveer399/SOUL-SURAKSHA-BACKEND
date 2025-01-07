@@ -140,4 +140,126 @@ const deleteDonation = async (req, res) => {
   }
 };
 
-export { createDonation, getActiveDonations, updateDonation, deleteDonation };
+const createDonationRecord = async (req, res) => {
+  try {
+    const { amount, donationId } = req.body;
+
+    const therapistId = req.role === "therapist" ? req.user?.id : null;
+    const parentId = req.role === "parent" ? req.user?.id : null;
+
+    await prisma.$transaction(async (prisma) => {
+      await prisma.donationRecord.create({
+        data: {
+          amount,
+          donationId,
+          parentId,
+          therapistId,
+        },
+      });
+
+      await prisma.donation.update({
+        where: {
+          id: donationId,
+        },
+        data: {
+          receivedAmount: {
+            increment: amount,
+          },
+        },
+      });
+    });
+
+    return res.status(200).json({
+      message: "Donation record created successfully",
+      status: true,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error while creating donation record",
+      error: error.message,
+      status: false,
+    });
+  }
+};
+
+const getSpecificUserDonationRecord = async (req, res) => {
+  try {
+    let records;
+
+    if (req.role === "therapist") {
+      records = await prisma.donationRecord.findMany({
+        where: {
+          therapistId: req.user?.id,
+        },
+        include: {
+          donation: {
+            select: {
+              id: true,
+              imgUrl: true,
+              title: true,
+              desc: true,
+              organizedBy: true,
+            },
+          },
+        },
+      });
+    } else if (req.role === "parent") {
+      records = await prisma.donationRecord.findMany({
+        where: {
+          parentId: req.user?.id,
+        },
+        include: {
+          donation: {
+            select: {
+              id: true,
+              imgUrl: true,
+              title: true,
+              desc: true,
+              organizedBy: true,
+            },
+          },
+        },
+      });
+    }
+
+    // Group records by donationId and calculate total amount for each donation
+    const groupedDonations = records.reduce((acc, record) => {
+      const donationId = record.donation.id;
+
+      if (!acc[donationId]) {
+        acc[donationId] = {
+          donationInfo: record.donation,
+          totalAmount: 0,
+        };
+      }
+
+      acc[donationId].totalAmount += record.amount || 0;
+
+      return acc;
+    }, {});
+
+    // Convert the grouped object to an array
+    const formattedRecords = Object.values(groupedDonations);
+
+    return res.status(200).json({
+      data: formattedRecords,
+      message: "Donation record fetched successfully",
+      status: true,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error while getting donation record",
+      error: error.message,
+      status: false,
+    });
+  }
+};
+
+export {
+  createDonation,
+  getActiveDonations,
+  updateDonation,
+  deleteDonation,
+  createDonationRecord,
+  getSpecificUserDonationRecord,
+};

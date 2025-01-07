@@ -13,11 +13,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// enum UserType {
-//   Parent
-//   Student
-// }
-
 model Student {
   id           String   @id @default(uuid())
   fullName     String
@@ -92,9 +87,11 @@ model Donation {
 }
 
 model DonationRecord {
-  id        String   @id @default(uuid())
-  amount    Float
-  createdAt DateTime @default(now())
+  id                String   @id @default(uuid())
+  amount            Float
+  razorpayOrderId   String?  @unique
+  razorpayPaymentId String?  @unique
+  createdAt         DateTime @default(now())
 
   // Relation to donation
   donationId String
@@ -107,16 +104,8 @@ model DonationRecord {
   therapist   Therapist? @relation(fields: [therapistId], references: [id])
 
   @@index([donationId])
-  // @@index([studentId])
   @@index([therapistId])
 }
-
-// model Qualification {
-//   id          String    @id @default(uuid())
-//   name        String
-//   therapistId String
-//   therapist   Therapist @relation(fields: [therapistId], references: [id])
-// }
 
 model Story {
   id        String    @id @default(uuid())
