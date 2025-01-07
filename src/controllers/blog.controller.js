@@ -160,11 +160,11 @@ const getBlog = async (req, res) => {
       });
     }
 
-    const createdOn = new Date(blog.createdAt).toLocaleDateString('en-us', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-      timeZone: 'Asia/Kolkata'  // Indian timezone
+    const createdOn = new Date(blog.createdAt).toLocaleDateString("en-us", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+      timeZone: "Asia/Kolkata", // Indian timezone
     });
 
     return res.status(200).json({
@@ -187,4 +187,39 @@ const getBlog = async (req, res) => {
   }
 };
 
-export { createBlog, getBlogs, getBlog };
+// Get top 5 most viewed blogs
+const getTopViewedBlogs = async (req, res) => {
+  try {
+    const topBlogs = await prisma.blog.findMany({
+      take: 5,
+      orderBy: {
+        viewCount: "desc",
+      },
+      select: {
+        id: true,
+        image: true,
+      },
+    });
+
+    if (!topBlogs.length) {
+      return res.status(404).json({
+        success: false,
+        message: "No blogs found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: topBlogs,
+      message: "Top 5 viewed blogs retrieved successfully",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Error fetching top viewed blogs",
+      error: error,
+    });
+  }
+};
+
+export { createBlog, getBlogs, getBlog, getTopViewedBlogs };
