@@ -85,11 +85,12 @@ const sendMessage = async (req, res) => {
 
 const getMessages = async (req, res) => {
   const { otherUserId } = req.params;
+  const { page = 1, limit = 30 } = req.query; // Get pagination parameters from query
   const userId = req.user?.id;
   const userType =
     req.user.userType !== "parent" && req.user.userType === "therapist"
       ? "THERAPIST"
-      : "STUDENT"; // Assuming we know if user is STUDENT or THERAPIST
+      : "STUDENT";
 
   try {
     // Find conversation based on user types
@@ -118,43 +119,54 @@ const getMessages = async (req, res) => {
         .json({ message: "Conversation not found", status: false });
     }
 
-    // Get all messages for this conversation
+    // Calculate skip value for pagination
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Get total count of messages
+    const totalMessages = await prisma.message.count({
+      where: {
+        conversationId: conversation.id,
+      },
+    });
+
+    // Get paginated messages for this conversation
     const messages = await prisma.message.findMany({
       where: {
         conversationId: conversation.id,
       },
       orderBy: {
-        createdAt: "asc",
+        createdAt: "desc", // Changed to desc to get latest messages first
       },
+      skip,
+      take: parseInt(limit),
       select: {
         id: true,
         content: true,
         senderId: true,
         senderType: true,
         seen: true,
+        createdAt: true, // Added createdAt for frontend reference
       },
-      // include: {
-      //   conversation: {
-      //     include: {
-      //       student: {
-      //         select: {
-      //           id: true,
-      //           fullName: true,
-      //         },
-      //       },
-      //       therapist: {
-      //         select: {
-      //           id: true,
-      //           userName: true,
-      //         },
-      //       },
-      //     },
-      //   },
-      // },
     });
 
+    // Calculate pagination metadata
+    const totalPages = Math.ceil(totalMessages / parseInt(limit));
+    const hasNextPage = page < totalPages;
+    const hasPreviousPage = page > 1;
+
     res.status(200).json({
-      data: { data: messages, userType },
+      data: {
+        messages: messages.reverse(), // Reverse to maintain chronological order
+        userType,
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages,
+          totalMessages,
+          hasNextPage,
+          hasPreviousPage,
+          messagesPerPage: parseInt(limit),
+        },
+      },
       message: "Messages retrieved successfully",
       status: true,
     });

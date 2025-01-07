@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { prisma } from "../DB/prismaClientConfig.js";
+import { prisma } from "../db/prismaClientConfig.js";
 import {
   decryptPassword,
   encryptPassword,

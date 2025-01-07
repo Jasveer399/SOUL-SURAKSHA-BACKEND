@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import { prisma } from "../DB/prismaClientConfig.js";
+import { prisma } from "../db/prismaClientConfig.js";
 
 export const verifyJWT = (roles) => async (req, res, next) => {
   try {

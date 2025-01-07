@@ -1,7 +1,7 @@
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { generateAccessToken } from "../utils/generateAccessToken.js";
-import { prisma } from "../DB/prismaClientConfig.js";
+import { prisma } from "../db/prismaClientConfig.js";
 import { deleteSingleObjectFromS3 } from "./aws.controller.js";
 
 // Zod validation schema for user creation
