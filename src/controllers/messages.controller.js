@@ -1,4 +1,4 @@
-import { prisma } from "../DB/prismaClientConfig.js";
+import { prisma } from "../db/prismaClientConfig.js";
 import { getRecipientSocketId, io } from "../socket/socket.js";
 
 const sendMessage = async (req, res) => {
