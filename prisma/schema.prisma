@@ -167,6 +167,7 @@ model Blog {
   content      String
   summary      String
   blogCategory String
+  tags         String[] @default([])
   viewCount    Int      @default(0) // Just add this field
   image        String?
   createdAt    DateTime @default(now())

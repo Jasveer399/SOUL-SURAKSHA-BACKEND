@@ -9,6 +9,7 @@ const CreateBlogSchema = z.object({
     .max(50, { message: "Title cannot exceed 50 characters" }),
   content: z.string().min(1, { message: "Blog content cannot be empty" }),
   blogCategory: z.string().optional(),
+  tags: z.array(z.string()).optional(),
   image: z.string().optional(),
 });
 
@@ -18,7 +19,7 @@ const BlogPaginationSchema = z.object({
 });
 
 const createBlog = async (req, res) => {
-  const { title, content, image, blogCategory } = CreateBlogSchema.parse(
+  const { title, content, image, blogCategory, tags } = CreateBlogSchema.parse(
     req.body
   );
   const summary = await generateBlogContext(content);
@@ -26,6 +27,7 @@ const createBlog = async (req, res) => {
     const blog = await prisma.blog.create({
       data: {
         title,
+        tags,
         content,
         summary,
         blogCategory,
@@ -222,4 +224,124 @@ const getTopViewedBlogs = async (req, res) => {
   }
 };
 
-export { createBlog, getBlogs, getBlog, getTopViewedBlogs };
+const searchBlogs = async (req, res) => {
+  try {
+    const {
+      search, // General search term
+      sortBy = "date", // date, views, title
+      order = "desc", // asc, desc
+      page = 1, // Page number
+      limit = 10, // Items per page
+    } = req.query;
+
+    // Build search conditions
+    const queryConditions = {};
+
+    // Full-text search across multiple fields
+    if (search) {
+      const searchQuery = search.toLowerCase();
+      queryConditions.OR = [
+        {
+          title: {
+            equals: search,
+            mode: "insensitive",
+          },
+        },
+        {
+          summary: {
+            equals: search,
+            mode: "insensitive",
+          },
+        },
+        {
+          tags: {
+            hasSome: [searchQuery],
+          },
+        },
+      ];
+    }
+
+    // Determine sort configuration
+    const sortConfig = {};
+    switch (sortBy) {
+      case "views":
+        sortConfig.viewCount = order;
+        break;
+      case "title":
+        sortConfig.title = order;
+        break;
+      default: // 'date'
+        sortConfig.createdAt = order;
+    }
+
+    // Calculate pagination
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Execute main query
+    const blogs = await prisma.blog.findMany({
+      where: queryConditions,
+      select: {
+        id: true,
+        title: true,
+        summary: true,
+        blogCategory: true,
+        tags: true,
+        image: true,
+        viewCount: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: sortConfig,
+      skip,
+      take: parseInt(limit),
+    });
+
+    // Get total count for pagination
+    const totalCount = await prisma.blog.count({
+      where: queryConditions,
+    });
+
+    // Calculate pagination metadata
+    const totalPages = Math.ceil(totalCount / parseInt(limit));
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
+
+    if (blogs.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No blogs found matching your search criteria",
+        data: [],
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages,
+          totalItems: totalCount,
+          hasNextPage,
+          hasPrevPage,
+        },
+      });
+    }
+
+    // Return successful response
+    return res.status(200).json({
+      success: true,
+      message: "Blogs fetched successfully",
+      data: blogs,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages,
+        totalItems: totalCount,
+        hasNextPage,
+        hasPrevPage,
+      },
+    });
+  } catch (error) {
+    console.error("Error in searchBlogs:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
+
+export { createBlog, getBlogs, getBlog, getTopViewedBlogs, searchBlogs };
