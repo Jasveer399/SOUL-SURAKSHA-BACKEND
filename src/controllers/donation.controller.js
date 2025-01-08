@@ -1,5 +1,12 @@
 import { z } from "zod";
 import { prisma } from "../db/prismaClientConfig.js";
+import Razorpay from "razorpay";
+import crypto from "crypto";
+
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID,
+  key_secret: process.env.RAZORPAY_KEY_SECRET,
+});
 
 const DonationSchema = z.object({
   title: z
@@ -140,42 +147,31 @@ const deleteDonation = async (req, res) => {
   }
 };
 
-const createDonationRecord = async (req, res) => {
+const getSpecificDonation = async (req, res) => {
   try {
-    const { amount, donationId } = req.body;
+    const { id } = req.params;
 
-    const therapistId = req.role === "therapist" ? req.user?.id : null;
-    const parentId = req.role === "parent" ? req.user?.id : null;
-
-    await prisma.$transaction(async (prisma) => {
-      await prisma.donationRecord.create({
-        data: {
-          amount,
-          donationId,
-          parentId,
-          therapistId,
-        },
-      });
-
-      await prisma.donation.update({
-        where: {
-          id: donationId,
-        },
-        data: {
-          receivedAmount: {
-            increment: amount,
-          },
-        },
-      });
+    const donation = await prisma.donation.findUnique({
+      where: {
+        id,
+      },
     });
 
+    if (!donation) {
+      return res.status(404).json({
+        message: "Donation not found",
+        status: false,
+      });
+    }
+
     return res.status(200).json({
-      message: "Donation record created successfully",
+      message: "Donation fetched successfully",
+      data: donation,
       status: true,
     });
   } catch (error) {
     return res.status(500).json({
-      message: "Error while creating donation record",
+      message: "Error while fetching donation",
       error: error.message,
       status: false,
     });
@@ -255,11 +251,156 @@ const getSpecificUserDonationRecord = async (req, res) => {
   }
 };
 
+const getInavtiveDonations = async (req, res) => {
+  try {
+    const donations = await prisma.donation.findMany({
+      where: {
+        isDonationActive: false,
+      },
+    });
+
+    return res.status(200).json({
+      data: donations,
+      message: "Donation record fetched successfully",
+      status: true,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error while getting donation record",
+      error: error.message,
+      status: false,
+    });
+  }
+};
+
+//Implement Razorpay
+
+const createOrder = async (req, res) => {
+  try {
+    const { amount, donationId } = req.body;
+
+    console.log("amount:>>", amount);
+
+    console.log("donationId: >>", donationId);
+
+    const options = {
+      amount: amount * 100,
+      currency: "INR",
+      receipt: `donation_${donationId.slice(0, 5)}_${Date.now()}`,
+    };
+
+    console.log(
+      "process.env.RAZORPAY_KEY_SECRET: >>",
+      process.env.RAZORPAY_KEY_SECRET
+    );
+    console.log("process.env.RAZORPAY_KEY_ID: >>", process.env.RAZORPAY_KEY_ID);
+
+    console.log("options: >>", options);
+
+    const order = await razorpay.orders.create(options);
+
+    console.log("order: >>", order);
+
+    return res.status(200).json({
+      data: {
+        orderId: order.id,
+        amount: order.amount,
+        currency: order.currency,
+      },
+      message: "Order created successfully",
+      status: true,
+    });
+  } catch (error) {
+    console.log("Error creating order: ", error);
+    res.status(500).json({
+      error: error.message,
+      message: "Error creating order",
+      status: false,
+    });
+  }
+};
+
+const createDonationRecord = async (req, res) => {
+  try {
+    const {
+      amount,
+      donationId,
+      razorpayOrderId,
+      razorpayPaymentId,
+      razorpaySignature,
+    } = req.body;
+
+    // Verify payment signature
+    const shasum = crypto.createHmac("sha256", process.env.RAZORPAY_KEY_SECRET);
+    shasum.update(`${razorpayOrderId}|${razorpayPaymentId}`);
+    const digest = shasum.digest("hex");
+
+    if (digest !== razorpaySignature) {
+      return res.status(400).json({
+        message: "Transaction not legit!",
+        status: false,
+      });
+    }
+
+    const therapistId = req.role === "therapist" ? req.user?.id : null;
+    const parentId = req.role === "parent" ? req.user?.id : null;
+
+    await prisma.$transaction(async (prisma) => {
+      await prisma.donationRecord.create({
+        data: {
+          amount: amount / 100,
+          donationId,
+          parentId,
+          therapistId,
+          razorpayOrderId,
+          razorpayPaymentId,
+        },
+      });
+
+      const updatedDonation = await prisma.donation.update({
+        where: {
+          id: donationId,
+        },
+        data: {
+          receivedAmount: {
+            increment: amount / 100,
+          },
+        },
+      });
+
+      if (updatedDonation.totalAmount >= updatedDonation.receivedAmount) {
+        await prisma.donation.update({
+          where: {
+            id: donationId,
+          },
+          data: {
+            isDonationActive: false,
+          },
+        });
+      }
+    });
+
+    return res.status(200).json({
+      message: "Donation record created successfully",
+      status: true,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error while creating donation record",
+      error: error.message,
+      status: false,
+    });
+  }
+};
+
 export {
   createDonation,
   getActiveDonations,
   updateDonation,
   deleteDonation,
-  createDonationRecord,
+  getSpecificDonation,
   getSpecificUserDonationRecord,
+  getInavtiveDonations,
+  createOrder,
+  createDonationRecord,
 };
