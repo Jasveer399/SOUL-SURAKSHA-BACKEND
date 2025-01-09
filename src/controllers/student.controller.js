@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { generateAccessToken } from "../utils/generateAccessToken.js";
 import { prisma } from "../db/prismaClientConfig.js";
 import { deleteSingleObjectFromS3 } from "./aws.controller.js";
+import { accessTokenGenerator } from "../utils/Helper.js";
 
 // Zod validation schema for user creation
 const CreateUserSchema = z.object({
@@ -55,33 +56,10 @@ const UserLoginSchema = z.object({
   password: z.string().min(1, { message: "Password is required" }),
 });
 
-const accessTokenGenerator = async (userId, userType) => {
-  let user;
-  try {
-    if (userType === "student") {
-      user = await prisma.student.findFirstOrThrow({
-        where: { id: userId },
-      });
-    } else if (userType === "parent") {
-      user = await prisma.parent.findFirstOrThrow({
-        where: { id: userId },
-      });
-    } else {
-      user = await prisma.therapist.findFirstOrThrow({
-        where: { id: userId },
-      });
-    }
-    const accessToken = generateAccessToken(user.id, user.email, userType);
-    return { accessToken };
-  } catch (error) {
-    throw new Error("Failed to generate access token");
-  }
-};
 
 const createStudent = async (req, res) => {
   try {
     // Validate input using Zod
-    console.log("Request body", req.body);
     const {
       fullName,
       phone,
@@ -126,9 +104,12 @@ const createStudent = async (req, res) => {
         createdAt: true,
       },
     });
+    const { accessToken } = await accessTokenGenerator(createStudent.id, "student");
 
     return res.status(201).json({
       data: createdStudent,
+      userType: "student",
+      accessToken,
       message: "User created successfully",
       status: true,
     });
@@ -244,9 +225,8 @@ const loginStudent = async (req, res) => {
     return res.status(200).json({
       data: {
         id: user.id,
-        userName: user.userName,
         email: user.email,
-        userType: user.userType,
+        userType: "student",
       },
       accessToken,
       message: "Logged In Successfully",

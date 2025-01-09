@@ -6,6 +6,7 @@ import {
 } from "../utils/passwordEncryptDescrypt.js";
 import { generateAccessToken } from "../utils/generateAccessToken.js";
 import { deleteSingleObjectFromS3 } from "./aws.controller.js";
+import { accessTokenGenerator } from "../utils/Helper.js";
 
 const createdTherapistSchema = z.object({
   userName: z
@@ -58,19 +59,6 @@ const EditUserSchema = z.object({
 
   imageBeforeChange: z.string().optional().nullable(),
 });
-
-const accessTokenGenerator = async (id) => {
-  try {
-    const user = await prisma.therapist.findUnique({
-      where: { id },
-    });
-
-    const accessToken = generateAccessToken(user.id, user.email, "therapist");
-    return { accessToken };
-  } catch (error) {
-    throw new Error("Failed to generate access token");
-  }
-};
 
 const createTherapist = async (req, res) => {
   try {
@@ -143,9 +131,11 @@ const createTherapist = async (req, res) => {
         languageType: true,
       },
     });
-
+    const { accessToken } = await accessTokenGenerator(createTherapist.id, "therapist");
     return res.status(201).json({
       data: createdTherapist,
+      userType: "therapist",
+      accessToken,
       message: "Therapist account created successfully",
       status: true,
     });
@@ -277,6 +267,7 @@ const loginTherapist = async (req, res) => {
       data: {
         id: therapist.id,
         userName: therapist.userName,
+        userType: "therapist",
         email: therapist.email,
       },
       accessToken,
