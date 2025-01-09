@@ -174,11 +174,18 @@ model Blog {
   updatedAt    DateTime @updatedAt
 }
 
+enum ConversationStatus {
+  Accepted
+  Pending
+  Dismiss
+}
+
 model Conversation {
   id            String   @id @default(uuid())
   createdAt     DateTime @default(now())
   lastMessageAt DateTime @default(now()) // Helps with sorting conversations
   lastMessage   String? // Last message content
+  status        ConversationStatus?
 
   // Participants (Student and Therapist)
   studentId   String

@@ -1,5 +1,33 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { JSDOM } from "jsdom";
+import { generateAccessToken } from "./generateAccessToken.js";
+import { prisma } from "../db/prismaClientConfig.js";
+
+const accessTokenGenerator = async (userId, userType) => {
+  let user;
+
+  console.log("userType", userType);
+  try {
+    if (userType === "student") {
+      user = await prisma.student.findFirstOrThrow({
+        where: { id: userId },
+      });
+    } else if (userType === "parent") {
+      user = await prisma.parent.findFirstOrThrow({
+        where: { id: userId },
+      });
+    } else {
+      user = await prisma.therapist.findFirstOrThrow({
+        where: { id: userId },
+      });
+    }
+    const accessToken = generateAccessToken(user.id, user.email, userType);
+    return { accessToken };
+  } catch (error) {
+    throw new Error("Failed to generate access token");
+  }
+};
+
 export const timeAgo = (date) => {
   const seconds = Math.floor((new Date() - new Date(date)) / 1000);
 
@@ -46,14 +74,14 @@ const extractTextFromHtml = (htmlContent) => {
 
   // Get text content
   return document.body.textContent
-      .trim()
-      .replace(/\s+/g, " ") // Normalize whitespace
-      .replace(/!\[.*?\]/g, ""); // Remove markdown image syntax
+    .trim()
+    .replace(/\s+/g, " ") // Normalize whitespace
+    .replace(/!\[.*?\]/g, ""); // Remove markdown image syntax
 };
 
 const createBlogContextPrompt = (htmlContent) => {
   const cleanContent = extractTextFromHtml(htmlContent);
-  
+
   return `
 Analyze the following blog content and provide:
 1. A concise 3-line summary capturing the main message
@@ -69,49 +97,51 @@ ${cleanContent}
 
 const generateBlogContext = async (content) => {
   if (!content) {
-      throw new Error("Blog content is required");
+    throw new Error("Blog content is required");
   }
 
   try {
-      // Initialize the AI model
-      const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GENERATIVEAI_API_KEY);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-8b" });
+    // Initialize the AI model
+    const genAI = new GoogleGenerativeAI(
+      process.env.GOOGLE_GENERATIVEAI_API_KEY
+    );
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-8b" });
 
-      // Generate and send prompt
-      const prompt = createBlogContextPrompt(content);
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
+    // Generate and send prompt
+    const prompt = createBlogContextPrompt(content);
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
 
-      // Parse the response
-      const summarySection = text.split('\n\n').find(section => 
-          section.startsWith('SUMMARY:')
-      );
+    // Parse the response
+    const summarySection = text
+      .split("\n\n")
+      .find((section) => section.startsWith("SUMMARY:"));
 
-      if (!summarySection) {
-          throw new Error("Failed to generate summary from AI response");
-      }
+    if (!summarySection) {
+      throw new Error("Failed to generate summary from AI response");
+    }
 
-      // Extract and clean the summary
-      const summary = summarySection
-          .replace('SUMMARY:', '')
-          .trim()
-          .split('\n')
-          .filter(line => line.length > 0)
-          .join('\n');
+    // Extract and clean the summary
+    const summary = summarySection
+      .replace("SUMMARY:", "")
+      .trim()
+      .split("\n")
+      .filter((line) => line.length > 0)
+      .join("\n");
 
-      return summary
+    return summary;
   } catch (error) {
-      console.error("AI Context Generation Error:", error);
-      return {
-          success: false,
-          error: error.message || "Failed to generate context",
-          metadata: {
-              errorCode: error.code,
-              errorDetails: error.details
-          }
-      };
+    console.error("AI Context Generation Error:", error);
+    return {
+      success: false,
+      error: error.message || "Failed to generate context",
+      metadata: {
+        errorCode: error.code,
+        errorDetails: error.details,
+      },
+    };
   }
 };
 
-export { generateBlogContext };
+export { generateBlogContext, accessTokenGenerator };
