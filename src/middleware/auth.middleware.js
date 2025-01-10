@@ -4,6 +4,7 @@ import { prisma } from "../db/prismaClientConfig.js";
 export const verifyJWT = (roles) => async (req, res, next) => {
   try {
     const token = req.header("Authorization")?.replace("Bearer ", "");
+    console.log("token", token);
 
     if (!token) {
       return res.status(401).json({
@@ -13,6 +14,8 @@ export const verifyJWT = (roles) => async (req, res, next) => {
     }
 
     const decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+
+    console.log("decodedToken", decodedToken);
 
     if (!decodedToken?.id || !decodedToken?.userType) {
       return res.status(401).json({
@@ -86,6 +89,8 @@ export const verifyJWT = (roles) => async (req, res, next) => {
         where: { id: decodedToken?.id },
       });
     }
+
+    console.log("user", user);
 
     if (!user) {
       return res.status(401).json({

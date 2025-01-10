@@ -32,10 +32,12 @@ const sendMessage = async (req, res) => {
           ? {
               studentId: senderId,
               therapistId: recipientId,
+              status: "Pending",
             }
           : {
               studentId: recipientId,
               therapistId: senderId,
+              status: "Pending",
             };
 
       conversation = await prisma.conversation.create({
@@ -184,15 +186,16 @@ const getConversation = async (req, res) => {
   const userId = req.user.id;
   const userType = req.user?.userType?.toUpperCase();
 
-  console.log("userId: >>", userId);
-  console.log("userType: >>", userType);
-
   try {
     const conversations = await prisma.conversation.findMany({
-      where:
-        userType === "STUDENT"
-          ? { studentId: userId }
-          : { therapistId: userId },
+      where: {
+        AND: [
+          // User type condition
+          userType === "STUDENT"
+            ? { studentId: userId }
+            : { therapistId: userId, status: "Accepted" },
+        ],
+      },
       include: {
         // Only include therapist data if user is a student
         ...(userType === "STUDENT" && {
@@ -228,12 +231,12 @@ const getConversation = async (req, res) => {
               where: {
                 seen: false,
                 NOT: {
-                  senderId: userId // Don't count user's own messages
-                }
-              }
-            }
-          }
-        }
+                  senderId: userId, // Don't count user's own messages
+                },
+              },
+            },
+          },
+        },
       },
       orderBy: {
         lastMessageAt: "desc",
@@ -241,10 +244,10 @@ const getConversation = async (req, res) => {
     });
 
     // Transform the response to include unread count
-    const transformedConversations = conversations.map(conv => ({
+    const transformedConversations = conversations.map((conv) => ({
       ...conv,
       unreadCount: conv._count.messages,
-      _count: undefined // Remove the _count field from response
+      _count: undefined, // Remove the _count field from response
     }));
 
     res.status(200).json({
@@ -262,4 +265,130 @@ const getConversation = async (req, res) => {
   }
 };
 
-export { sendMessage, getMessages, getConversation };
+const getPendingConversationsOfSpecificTherapist = async (req, res) => {
+  try {
+    const conversations = await prisma.conversation.findMany({
+      where: {
+        AND: [{ therapistId: req.user?.id }, { status: "Pending" }],
+      },
+      include: {
+        student: {
+          select: {
+            studentImage: true,
+            fullName: true,
+          },
+        },
+      },
+    });
+
+    return res.status(200).json({
+      data: conversations,
+      message: "Conversations retrieved successfully",
+      status: true,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: error.message,
+      message: "Failed to retrieve conversations",
+      status: false,
+    });
+  }
+};
+
+const checkConversationExists = async (req, res) => {
+  const { id } = req.params;
+  try {
+    console.log("req.user: >>", req.user);
+    console.log("id: >>", id);
+    const conversation = await prisma.conversation.findFirst({
+      where: {
+        OR: [
+          {
+            AND: [{ studentId: id }, { therapistId: req.user?.id }],
+          },
+          {
+            AND: [{ studentId: req.user?.id }, { therapistId: id }],
+          },
+        ],
+      },
+      include: {
+        therapist: {
+          select: {
+            userName: true,
+            therapistImage: true,
+          },
+        },
+      },
+    });
+
+    console.log("conversation: >>", conversation);
+
+    if (!conversation) {
+      return res.status(200).json({
+        message: "Conversation Not Exists !!",
+        exists: false,
+        status: true,
+      });
+    }
+
+    return res.status(200).json({
+      convId: conversation.id,
+      userId: id,
+      message: "Conversation Exists",
+      exists: true,
+      status: true,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: error.message,
+      message: "Failed to retrieve conversations",
+      status: false,
+    });
+  }
+};
+
+const handleReq = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const status = req.body.status === "accept" ? "Accepted" : "Dismiss";
+
+    console.log("id: >>", id);
+    console.log("status: >>", status);
+
+    const conversation = await prisma.conversation.update({
+      where: {
+        id,
+      },
+      data: {
+        status,
+      },
+    });
+
+    if (!conversation) {
+      return res.status(500).json({
+        message: "Conversation Not Exists !!",
+        status: false,
+      });
+    }
+
+    return res.status(200).json({
+      message: "Conversation Status Updated Successfully !!",
+      status: true,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: error.message,
+      message: "Failed to change status",
+      status: false,
+    });
+  }
+};
+
+export {
+  sendMessage,
+  getMessages,
+  getConversation,
+  getPendingConversationsOfSpecificTherapist,
+  checkConversationExists,
+  handleReq,
+};
