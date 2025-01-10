@@ -2,9 +2,9 @@ import { z } from "zod";
 
 // Zod schema for userType validation
 const UserTypeSchema = z.object({
-  userType: z.enum(["student", "therapist", "STUDENT", "THERAPIST"], {
+  userType: z.enum(["student", "therapist", "STUDENT", "THERAPIST", "parent", "PARENT"], {
     errorMap: () => ({
-      message: "User type must be either 'student' or 'therapist'",
+      message: "User type must be either 'student','therapist' or 'parent'",
     }),
   }),
 });

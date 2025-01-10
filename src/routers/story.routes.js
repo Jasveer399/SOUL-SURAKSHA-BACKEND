@@ -19,9 +19,9 @@ router.get(
   verifyJWT(["student", "parent", "therapist"]),
   getStories
 );
-router.put("/editstory/:stotyId", verifyJWT(["student"]), editStory);
-router.delete("/deletestory/:stotyId", verifyJWT(["student"]), deleteStory);
-router.post("/addcomment/:stotyId", verifyJWT(["student"]), addComment);
+router.put("/editstory/:storyId", verifyJWT(["student"]), editStory);
+router.delete("/deletestory/:storyId", verifyJWT(["student"]), deleteStory);
+router.post("/addcomment/:storyId", verifyJWT(["student"]), addComment);
 router.get(
   "/getCurrentUserStories",
   verifyJWT(["student"]),

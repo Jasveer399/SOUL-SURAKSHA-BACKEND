@@ -314,7 +314,6 @@ const logoutTherapist = async (req, res) => {
     });
   }
 };
-``
 const getAllTherapist = async (_, res) => {
   try {
     const therapists = await prisma.therapist.findMany({

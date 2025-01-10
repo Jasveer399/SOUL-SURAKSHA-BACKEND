@@ -1,3 +1,4 @@
+import { createParent } from "./parent.controller.js";
 import { createStudent } from "./student.controller.js";
 import { createTherapist } from "./therapist.controller.js";
 
@@ -38,6 +39,9 @@ const createUser = async (req, res) => {
       
       case 'therapist':
         return await createTherapist(req, res);
+      
+      case 'parent':
+        return await createParent(req, res);
       
       default:
         return res.status(400).json({
