@@ -28,7 +28,7 @@ const StoryPaginationSchema = z.object({
 
 // Zod validation schema for editing a post
 const EditStorySchema = z.object({
-  stotyId: z.string().uuid({ message: "Invalid Story ID" }),
+  storyId: z.string().uuid({ message: "Invalid Story ID" }),
   title: z
     .string()
     .min(2, { message: "Title must be at least 2 characters long" })
@@ -335,7 +335,7 @@ const editStory = async (req, res) => {
 
     // Validate input using Zod
     const {
-      stotyId,
+      storyId,
       title,
       content,
       image,
@@ -344,13 +344,13 @@ const editStory = async (req, res) => {
       audioBeforeChange,
     } = EditStorySchema.parse({
       ...req.body,
-      stotyId: req.params.stotyId, // Get stotyId from URL parameter
+      storyId: req.params.storyId, // Get storyId from URL parameter
     });
 
     // First, verify the post exists and belongs to the user
     const existingStory = await prisma.story.findUnique({
       where: {
-        id: stotyId,
+        id: storyId,
         studentId: userId,
       },
       select: {
@@ -391,7 +391,7 @@ const editStory = async (req, res) => {
 
     // Update the post
     const updatedStory = await prisma.story.update({
-      where: { id: stotyId },
+      where: { id: storyId },
       data: updateData,
       select: {
         id: true,
@@ -443,12 +443,12 @@ const editStory = async (req, res) => {
 
 const deleteStory = async (req, res) => {
   try {
-    const { stotyId } = req.params;
+    const { storyId } = req.params;
 
     // First, verify the story exists and belongs to the user
     const existingStory = await prisma.story.findUnique({
       where: {
-        id: stotyId,
+        id: storyId,
         studentId: req.user.id,
       },
       select: {
@@ -468,7 +468,7 @@ const deleteStory = async (req, res) => {
 
     // Delete the post
     const deletedStory = await prisma.story.delete({
-      where: { id: stotyId },
+      where: { id: storyId },
       select: {
         image: true,
         audio: true,
@@ -497,12 +497,12 @@ const deleteStory = async (req, res) => {
 
 const addComment = async (req, res) => {
   try {
-    const { stotyId } = req.params;
+    const { storyId } = req.params;
     const { comment } = req.body;
 
     // Find the story
     const story = await prisma.story.findUnique({
-      where: { id: stotyId },
+      where: { id: storyId },
     });
 
     if (!story) {
@@ -517,7 +517,7 @@ const addComment = async (req, res) => {
       data: {
         content: comment,
         studentId: req.user.id,
-        storyId: stotyId,
+        storyId: storyId,
       },
       select: {
         content: true,
@@ -698,10 +698,10 @@ const toggleStoryLike = async (req, res) => {
 export {
   createStory,
   getStories,
+  getCurrentUserStories,
   editStory,
   deleteStory,
   addComment,
-  getCurrentUserStories,
   getStoryComments,
   toggleStoryLike,
 };
