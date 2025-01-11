@@ -9,6 +9,7 @@ import reviewRoutes from "./review.routes.js";
 import { blogRoutes } from "./blog.routes.js";
 import { donationRoutes } from "./donation.routes.js";
 import { parentRoutes } from "./parent.routes.js";
+import othersRoutes from "./others.routes.js";
 
 const router = Router();
 
@@ -22,6 +23,6 @@ router.use("/api/v1/user", userRoutes);
 router.use("/api/v1/review", reviewRoutes);
 router.use("/api/v1/blog", blogRoutes);
 router.use("/api/v1/donation", donationRoutes);
-
+router.use("/api/v1/others", othersRoutes);
 
 export { router as routes };
