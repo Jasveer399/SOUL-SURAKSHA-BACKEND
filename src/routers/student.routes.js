@@ -6,6 +6,7 @@ import {
   getStudentProfile,
   loginStudent,
   logoutStudent,
+  getAllStudents,
 } from "../controllers/student.controller.js";
 
 const router = Router();
@@ -15,5 +16,6 @@ router.post("/login", loginStudent);
 router.post("/logout", verifyJWT(["student"]), logoutStudent);
 router.get("/profile", verifyJWT(["student"]), getStudentProfile);
 router.put("/editStudent", verifyJWT(["student"]), editStudent);
+router.get("/getAllStudents", getAllStudents);
 
 export { router as studentRoutes };

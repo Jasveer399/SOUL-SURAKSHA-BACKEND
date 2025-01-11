@@ -56,7 +56,6 @@ const UserLoginSchema = z.object({
   password: z.string().min(1, { message: "Password is required" }),
 });
 
-
 const createStudent = async (req, res) => {
   try {
     // Validate input using Zod
@@ -104,7 +103,10 @@ const createStudent = async (req, res) => {
         createdAt: true,
       },
     });
-    const { accessToken } = await accessTokenGenerator(createStudent.id, "student");
+    const { accessToken } = await accessTokenGenerator(
+      createStudent.id,
+      "student"
+    );
 
     return res.status(201).json({
       data: createdStudent,
@@ -303,10 +305,48 @@ const getStudentProfile = async (req, res) => {
   }
 };
 
+const getAllStudents = async (_, res) => {
+  try {
+    const students = await prisma.student.findMany({
+      select: {
+        id: true,
+        fullName: true,
+        studentImage: true,
+        _count: {
+          select: {
+            stories: true,
+          },
+        },
+      },
+    });
+
+    const formattedStudents = students.map((student) => ({
+      id: student.id,
+      fullName: student.fullName,
+      studentImage: student.studentImage,
+      storiesCount: student._count.stories,
+    }));
+
+    return res.status(200).json({
+      data: formattedStudents,
+      message: "All Students fetched successfully",
+      status: true,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      message: "Error while fetching all students",
+      error: error.message,
+      status: false,
+    });
+  }
+};
+
 export {
   createStudent,
   loginStudent,
   logoutStudent,
   getStudentProfile,
   editStudent,
+  getAllStudents,
 };

@@ -45,7 +45,7 @@ const EditParentSchema = z.object({
     .string()
     .min(2, { message: "Name must be at least 2 characters long" })
     .max(50, { message: "Name cannot exceed 50 characters" }),
-  
+
   parentImage: z.string().optional(),
   imageBeforeChange: z.string().optional().nullable(),
 });
@@ -120,7 +120,10 @@ const createParent = async (req, res) => {
       },
     });
 
-    const { accessToken } = await accessTokenGenerator(createdParent.id, "parent");
+    const { accessToken } = await accessTokenGenerator(
+      createdParent.id,
+      "parent"
+    );
 
     return res.status(201).json({
       data: createdParent,
@@ -223,7 +226,7 @@ const loginParent = async (req, res) => {
       });
     }
 
-    const { accessToken } = await accessTokenGenerator(parent.id,"parent");
+    const { accessToken } = await accessTokenGenerator(parent.id, "parent");
 
     return res.status(200).json({
       data: {
@@ -275,9 +278,35 @@ const logoutParent = async (req, res) => {
   }
 };
 
-export {
-  createParent,
-  editParent,
-  loginParent,
-  logoutParent,
+const getAllParents = async (_, res) => {
+  try {
+    const parents = await prisma.parent.findMany({
+      select: {
+        id: true,
+        fullName: true,
+        parentImage: true,
+      },
+    });
+
+    const formattedParents = parents.map((parent) => ({
+      id: parent.id,
+      fullName: parent.fullName,
+      parentImage: parent.parentImage,
+    }));
+
+    return res.status(200).json({
+      data: formattedParents,
+      message: "All Parents fetched successfully",
+      status: true,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      message: "Error while fetching all parents",
+      error: error.message,
+      status: false,
+    });
+  }
 };
+
+export { createParent, editParent, loginParent, logoutParent, getAllParents };
