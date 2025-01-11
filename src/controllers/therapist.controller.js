@@ -260,7 +260,7 @@ const loginTherapist = async (req, res) => {
     }
 
     // Generate access token
-    const { accessToken } = await accessTokenGenerator(therapist.id);
+    const { accessToken } = await accessTokenGenerator(therapist.id, "therapist");
 
     // Respond with token and user details
     return res.status(200).json({
