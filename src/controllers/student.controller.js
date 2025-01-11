@@ -214,13 +214,6 @@ const loginStudent = async (req, res) => {
     // Generate access token
     const { accessToken } = await accessTokenGenerator(user.id, "student");
 
-    // Set cookie options
-    // const options = {
-    //   httpOnly: true,
-    //   secure: process.env.NODE_ENV === 'production',
-    //   sameSite: 'strict'
-    // };
-
     // Respond with token and user details
     return res.status(200).json({
       data: {
@@ -280,7 +273,7 @@ const getStudentProfile = async (req, res) => {
       where: { id: req.user?.id },
       select: {
         id: true,
-        userName: true,
+        fullName: true,
         email: true,
         phone: true,
         age: true,

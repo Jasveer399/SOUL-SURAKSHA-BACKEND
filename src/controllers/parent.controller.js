@@ -154,7 +154,6 @@ const editParent = async (req, res) => {
       req.body
     );
 
-
     const parentId = req.user.id;
 
     const updatedParent = await prisma.parent.update({
