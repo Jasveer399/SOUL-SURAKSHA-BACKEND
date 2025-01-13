@@ -1,8 +1,16 @@
 import { z } from "zod";
 import { prisma } from "../db/prismaClientConfig.js";
-import { generateBlogContext, timeAgo } from "../utils/Helper.js";
+import {
+  extractImageUrls,
+  generateBlogContext,
+  timeAgo,
+} from "../utils/Helper.js";
+import {
+  deleteMultipleObjectsFromS3,
+  deleteSingleObjectFromS3,
+} from "./aws.controller.js";
 
-const CreateBlogSchema = z.object({
+const BlogSchema = z.object({
   title: z
     .string()
     .min(2, { message: "Title must be at least 2 characters long" })
@@ -19,7 +27,7 @@ const BlogPaginationSchema = z.object({
 });
 
 const createBlog = async (req, res) => {
-  const { title, content, image, blogCategory, tags } = CreateBlogSchema.parse(
+  const { title, content, image, blogCategory, tags } = BlogSchema.parse(
     req.body
   );
   const summary = await generateBlogContext(content);
@@ -119,23 +127,13 @@ const getBlogs = async (req, res) => {
 
 const getBlog = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { id, iscountView } = req.params;
 
     // Get blog and increment view count in a single transaction
     const blog = await prisma.$transaction(async (prisma) => {
       // First get the blog
       const blog = await prisma.blog.findUnique({
         where: { id },
-        select: {
-          id: true,
-          title: true,
-          content: true,
-          summary: true,
-          image: true,
-          viewCount: true,
-          createdAt: true,
-          blogCategory: true,
-        },
       });
 
       if (!blog) {
@@ -143,14 +141,16 @@ const getBlog = async (req, res) => {
       }
 
       // Increment view count
-      await prisma.blog.update({
-        where: { id },
-        data: {
-          viewCount: {
-            increment: 1,
+      if (iscountView === "true") {
+        await prisma.blog.update({
+          where: { id },
+          data: {
+            viewCount: {
+              increment: 1,
+            },
           },
-        },
-      });
+        });
+      }
 
       return blog;
     });
@@ -183,6 +183,78 @@ const getBlog = async (req, res) => {
     console.error(error);
     return res.status(500).json({
       message: "Error while retrieving blog",
+      error: error.message,
+      status: false,
+    });
+  }
+};
+
+const editBlog = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, content, image, blogCategory, tags } = BlogSchema.parse(
+      req.body
+    );
+    const summary = await generateBlogContext(content);
+    const blog = await prisma.blog.update({
+      where: {
+        id,
+      },
+      data: {
+        title,
+        tags,
+        content,
+        summary,
+        blogCategory,
+        image,
+      },
+    });
+    return res.status(200).json({
+      message: "Blog updated successfully",
+      data: blog,
+      status: true,
+    });
+  } catch (error) {
+    console.log("error", error);
+    return res.status(500).json({
+      message: error.message,
+      error: error,
+      status: false,
+    });
+  }
+};
+
+const deleteBlog = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const blog = await prisma.blog.delete({
+      where: {
+        id,
+      },
+    });
+
+    const imagesUrls = extractImageUrls(blog);
+
+    if (blog.image) {
+      await deleteSingleObjectFromS3(blog.image);
+    }
+
+    if (imagesUrls.length > 0) {
+      if (imagesUrls.length === 1) {
+        await deleteSingleObjectFromS3(imagesUrls[0]);
+      } else {
+        await deleteMultipleObjectsFromS3(imagesUrls);
+      }
+    }
+    return res.status(200).json({
+      message: "Blog deleted successfully",
+      data: blog,
+      status: true,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      message: "Error while deleting blog",
       error: error.message,
       status: false,
     });
@@ -344,4 +416,12 @@ const searchBlogs = async (req, res) => {
   }
 };
 
-export { createBlog, getBlogs, getBlog, getTopViewedBlogs, searchBlogs };
+export {
+  createBlog,
+  getBlogs,
+  getBlog,
+  getTopViewedBlogs,
+  searchBlogs,
+  editBlog,
+  deleteBlog,
+};

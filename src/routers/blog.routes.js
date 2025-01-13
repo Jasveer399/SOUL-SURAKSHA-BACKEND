@@ -1,6 +1,8 @@
 import { Router } from "express";
 import {
   createBlog,
+  deleteBlog,
+  editBlog,
   getBlog,
   getBlogs,
   getTopViewedBlogs,
@@ -11,7 +13,9 @@ const router = Router();
 
 router.post("/createBlog", createBlog);
 router.get("/getBlogs", getBlogs);
-router.get("/getBlog/:id", getBlog);
+router.get("/getBlog/:id/:iscountView", getBlog);
 router.get("/getTopViewedBlogs", getTopViewedBlogs);
 router.get("/searchBlogs", searchBlogs);
+router.put("/editBlog/:id", editBlog);
+router.delete("/deleteBlog/:id", deleteBlog);
 export { router as blogRoutes };
