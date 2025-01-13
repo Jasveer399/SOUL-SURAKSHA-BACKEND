@@ -16,8 +16,12 @@ const accessTokenGenerator = async (userId, userType) => {
       user = await prisma.parent.findFirstOrThrow({
         where: { id: userId },
       });
-    } else {
+    } else if (userType === "therapist") {
       user = await prisma.therapist.findFirstOrThrow({
+        where: { id: userId },
+      });
+    } else if (userType === "admin") {
+      user = await prisma.admin.findFirstOrThrow({
         where: { id: userId },
       });
     }

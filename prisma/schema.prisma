@@ -13,6 +13,16 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Admin {
+  id        String   @id @default(uuid())
+  name      String?
+  email     String   @unique
+  password  String
+  imgUrl    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+}
+
 model Student {
   id           String   @id @default(uuid())
   fullName     String
@@ -181,9 +191,9 @@ enum ConversationStatus {
 }
 
 model Conversation {
-  id            String   @id @default(uuid())
-  createdAt     DateTime @default(now())
-  lastMessageAt DateTime @default(now()) // Helps with sorting conversations
+  id            String              @id @default(uuid())
+  createdAt     DateTime            @default(now())
+  lastMessageAt DateTime            @default(now()) // Helps with sorting conversations
   lastMessage   String? // Last message content
   status        ConversationStatus?
 
