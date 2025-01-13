@@ -2,6 +2,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { JSDOM } from "jsdom";
 import { generateAccessToken } from "./generateAccessToken.js";
 import { prisma } from "../db/prismaClientConfig.js";
+import * as cheerio from "cheerio";
 
 const accessTokenGenerator = async (userId, userType) => {
   let user;
@@ -144,4 +145,25 @@ const generateBlogContext = async (content) => {
   }
 };
 
-export { generateBlogContext, accessTokenGenerator };
+function extractImageUrls(blogContent) {
+  try {
+    // Load the HTML content with cheerio
+    const $ = cheerio.load(blogContent.content);
+
+    // Find all img elements and extract their src attributes
+    const imageUrls = [];
+    $("img").each((_, element) => {
+      const src = $(element).attr("src");
+      if (src) {
+        imageUrls.push(src);
+      }
+    });
+
+    return imageUrls;
+  } catch (error) {
+    console.error("Error extracting image URLs:", error);
+    return [];
+  }
+}
+
+export { generateBlogContext, accessTokenGenerator, extractImageUrls };
