@@ -25,10 +25,12 @@ export const verifyJWT = (roles) => async (req, res, next) => {
     }
 
     let user;
+    let role;
     if (roles.includes("student")) {
       user = await prisma.student.findUnique({
         where: { id: decodedToken?.id },
       });
+      role = "student";
       if (!user && roles.includes("therapist")) {
         user = await prisma.therapist.findUnique({
           where: { id: decodedToken?.id },
@@ -51,11 +53,19 @@ export const verifyJWT = (roles) => async (req, res, next) => {
             },
           },
         });
+        role = "therapist";
       }
       if (!user && roles.includes("parent")) {
         user = await prisma.parent.findUnique({
           where: { id: decodedToken?.id },
         });
+        role = "parent";
+      }
+      if (!user && roles.includes("admin")) {
+        user = await prisma.admin.findUnique({
+          where: { id: decodedToken?.id },
+        });
+        role = "admin";
       }
     } else if (roles.includes("therapist")) {
       user = await prisma.therapist.findUnique({
@@ -79,18 +89,36 @@ export const verifyJWT = (roles) => async (req, res, next) => {
           },
         },
       });
+      role = "therapist";
       if (!user && roles.includes("parent")) {
         user = await prisma.parent.findUnique({
           where: { id: decodedToken?.id },
         });
+        role = "parent";
+      }
+      if (!user && roles.includes("admin")) {
+        user = await prisma.admin.findUnique({
+          where: { id: decodedToken?.id },
+        });
+        role = "admin";
       }
     } else if (roles.includes("parent")) {
       user = await prisma.parent.findUnique({
         where: { id: decodedToken?.id },
       });
+      role = "parent";
+      if (!user && roles.includes("admin")) {
+        user = await prisma.admin.findUnique({
+          where: { id: decodedToken?.id },
+        });
+        role = "admin";
+      }
+    } else if (roles.includes("admin")) {
+      user = await prisma.admin.findUnique({
+        where: { id: decodedToken?.id },
+      });
+      role = "admin";
     }
-
-    console.log("user", user);
 
     if (!user) {
       return res.status(401).json({
@@ -99,15 +127,8 @@ export const verifyJWT = (roles) => async (req, res, next) => {
       });
     }
 
-    const isStudent = await prisma.student.findUnique({
-      where: { id: user.id },
-    });
-    const isTherapist = await prisma.therapist.findUnique({
-      where: { id: user.id },
-    });
-
     req.user = { ...user, userType: decodedToken.userType };
-    req.role = isStudent ? "student" : isTherapist ? "therapist" : "parent";
+    req.role = role;
     next();
   } catch (error) {
     if (error instanceof jwt.JsonWebTokenError) {

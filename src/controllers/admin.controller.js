@@ -92,7 +92,7 @@ const updateDetails = async (req, res) => {
 
     const updatedAdmin = await prisma.admin.update({
       where: {
-        id: req.user.id,
+        id: req.user?.id,
       },
       data: {
         name,
@@ -109,7 +109,12 @@ const updateDetails = async (req, res) => {
     }
 
     return res.status(200).json({
-      data: updatedAdmin,
+      data: {
+        id: updatedAdmin.id,
+        name: updatedAdmin.name,
+        email: updatedAdmin.email,
+        imgUrl: updatedAdmin.imgUrl,
+      },
       message: "Admin details updated successfully",
       status: true,
     });

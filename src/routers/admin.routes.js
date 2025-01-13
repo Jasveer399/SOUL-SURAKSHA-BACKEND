@@ -6,6 +6,6 @@ const router = Router();
 
 router.post("/create", createAdminAccount);
 router.post("/login", loginAdmin);
-router.put("/update", updateDetails);
+router.put("/update", verifyJWT(["admin"]), updateDetails);
 
 export default router
