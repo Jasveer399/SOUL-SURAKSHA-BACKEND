@@ -8,6 +8,7 @@ import {
   getCurrentUserStories,
   getStories,
   getStoryComments,
+  getTopThreeLikedStoryes,
   toggleStoryLike,
 } from "../controllers/story.controller.js";
 
@@ -21,7 +22,11 @@ router.get(
 );
 router.put("/editstory/:storyId", verifyJWT(["student"]), editStory);
 router.delete("/deletestory/:storyId", verifyJWT(["student"]), deleteStory);
-router.post("/addcomment/:storyId", verifyJWT(["student"]), addComment);
+router.post(
+  "/addcomment/:storyId",
+  verifyJWT(["student", "therapist", "parent"]),
+  addComment
+);
 router.get(
   "/getCurrentUserStories",
   verifyJWT(["student"]),
@@ -29,9 +34,10 @@ router.get(
 );
 router.post(
   "/like/:storyId",
-  verifyJWT(["student", "parent"]),
+  verifyJWT(["student", "therapist", "parent"]),
   toggleStoryLike
 );
 router.get("/getStoryComments", getStoryComments);
+router.get("/getTopThreeLikedStoryes", getTopThreeLikedStoryes);
 
 export { router as storyRoutes };

@@ -18,7 +18,7 @@ const createParentSchema = z.object({
     .string()
     .regex(/^\+?[1-9]\d{1,14}$/, { message: "Invalid phone number format" }),
 
-  email: z.string().email({ message: "Invalid email address" }),
+  email: z.string().email({ message: "Invalid email address" }).toLowerCase(),
 
   password: z
     .string()
@@ -35,7 +35,7 @@ const createParentSchema = z.object({
 
 // Parent Login Schema
 const ParentLoginSchema = z.object({
-  email: z.string().email({ message: "Invalid email address" }),
+  email: z.string().email({ message: "Invalid email address" }).toLowerCase(),
   password: z.string().min(1, { message: "Password is required" }),
 });
 

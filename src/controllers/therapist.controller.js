@@ -18,7 +18,7 @@ const createdTherapistSchema = z.object({
     .string()
     .regex(/^\+?[1-9]\d{1,14}$/, { message: "Invalid phone number format" }),
 
-  email: z.string().email({ message: "Invalid email address" }),
+  email: z.string().email({ message: "Invalid email address" }).toLowerCase(),
 
   password: z
     .string()
@@ -37,7 +37,7 @@ const createdTherapistSchema = z.object({
 });
 
 const TherapistLoginSchema = z.object({
-  email: z.string().email({ message: "Invalid email address" }),
+  email: z.string().email({ message: "Invalid email address" }).toLowerCase(),
   password: z.string().min(1, { message: "Password is required" }),
 });
 
@@ -131,7 +131,10 @@ const createTherapist = async (req, res) => {
         languageType: true,
       },
     });
-    const { accessToken } = await accessTokenGenerator(createTherapist.id, "therapist");
+    const { accessToken } = await accessTokenGenerator(
+      createTherapist.id,
+      "therapist"
+    );
     return res.status(201).json({
       data: createdTherapist,
       userType: "therapist",
@@ -260,7 +263,10 @@ const loginTherapist = async (req, res) => {
     }
 
     // Generate access token
-    const { accessToken } = await accessTokenGenerator(therapist.id, "therapist");
+    const { accessToken } = await accessTokenGenerator(
+      therapist.id,
+      "therapist"
+    );
 
     // Respond with token and user details
     return res.status(200).json({
