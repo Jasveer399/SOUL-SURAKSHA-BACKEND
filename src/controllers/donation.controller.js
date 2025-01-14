@@ -2,6 +2,7 @@ import { z } from "zod";
 import { prisma } from "../db/prismaClientConfig.js";
 import Razorpay from "razorpay";
 import crypto from "crypto";
+import { deleteSingleObjectFromS3 } from "./aws.controller.js";
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
@@ -129,11 +130,16 @@ const getActiveDonations = async (req, res) => {
 const deleteDonation = async (req, res) => {
   try {
     const { id } = req.params;
-    await prisma.donation.delete({
+    const deletedDonation = await prisma.donation.delete({
       where: {
         id,
       },
     });
+
+    if (deletedDonation.imgUrl) {
+      await deleteSingleObjectFromS3(deletedDonation.imgUrl);
+    }
+    
     return res.status(200).json({
       message: "Donation deleted successfully",
       status: true,
