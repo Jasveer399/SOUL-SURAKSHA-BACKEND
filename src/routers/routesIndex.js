@@ -20,7 +20,7 @@ router.use("/api/v1/story", storyRoutes);
 router.use("/api/v1/therapist", therapistRoutes);
 router.use("/api/v1/messages", messagesRoutes);
 router.use("/api/v1/aws", awsRoutes);
-router.use("/api/v1/user", userRoutes);
+router.use("/api/v1/users", userRoutes);
 router.use("/api/v1/review", reviewRoutes);
 router.use("/api/v1/blog", blogRoutes);
 router.use("/api/v1/donation", donationRoutes);

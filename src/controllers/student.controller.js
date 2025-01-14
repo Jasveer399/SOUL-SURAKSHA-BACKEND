@@ -14,9 +14,10 @@ const CreateUserSchema = z.object({
 
   phone: z
     .string()
-    .regex(/^\+?[1-9]\d{1,14}$/, { message: "Invalid phone number format" }),
+    .regex(/^\+?[1-9]\d{1,14}$/, { message: "Invalid phone number format" })
+    .optional(),
 
-  email: z.string().email({ message: "Invalid email address" }),
+  email: z.string().email({ message: "Invalid email address" }).toLowerCase(),
 
   password: z
     .string()
@@ -52,7 +53,7 @@ const EditUserSchema = z.object({
 
 // Zod validation schema for user login
 const UserLoginSchema = z.object({
-  email: z.string().email({ message: "Invalid email address" }),
+  email: z.string().email({ message: "Invalid email address" }).toLowerCase(),
   password: z.string().min(1, { message: "Password is required" }),
 });
 

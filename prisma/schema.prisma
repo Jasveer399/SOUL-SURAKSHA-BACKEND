@@ -26,7 +26,10 @@ model Admin {
 model Student {
   id           String   @id @default(uuid())
   fullName     String
-  phone        String
+  phone        String?
+  bio          String?
+  dob          String?
+  gender       String?
   email        String   @unique
   password     String
   studentImage String?
@@ -78,6 +81,8 @@ model Therapist {
   createdAt      DateTime         @default(now())
   Conversation   Conversation[]
   Review         Review[]
+  comments       Comment[]
+  likes          Like[]
   DonationRecord DonationRecord[]
 }
 
@@ -138,10 +143,12 @@ model Comment {
   createdAt DateTime @default(now())
 
   // Make these optional and mutually exclusive
-  studentId String?
-  student   Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  parentId  String?
-  parent    Parent?  @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  studentId   String?
+  student     Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  therapistId String?
+  therapist   Therapist? @relation(fields: [therapistId], references: [id], onDelete: Cascade)
+  parentId    String?
+  parent      Parent?  @relation(fields: [parentId], references: [id], onDelete: Cascade)
 
   storyId String
   story   Story  @relation(fields: [storyId], references: [id], onDelete: Cascade)
@@ -156,12 +163,14 @@ model Like {
   createdAt DateTime @default(now())
 
   // Make these optional and mutually exclusive
-  studentId String?
-  student   Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  parentId  String?
-  parent    Parent?  @relation(fields: [parentId], references: [id], onDelete: Cascade)
-  storyId   String
-  story     Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  studentId   String?
+  student     Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  therapistId String?
+  therapist   Therapist? @relation(fields: [therapistId], references: [id], onDelete: Cascade)
+  parentId    String?
+  parent      Parent?  @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  storyId     String
+  story       Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
 
   // Prevent multiple likes from same user on same story
   @@unique([studentId, storyId])

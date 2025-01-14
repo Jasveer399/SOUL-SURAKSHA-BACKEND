@@ -147,6 +147,7 @@ const getStories = async (req, res) => {
                 OR: [
                   { studentId: role === "student" ? userId : undefined },
                   { parentId: role === "parent" ? userId : undefined },
+                  { therapistId: role === "therapist" ? userId : undefined },
                 ],
               },
               select: {
@@ -188,7 +189,7 @@ const getStories = async (req, res) => {
         timeAgo: timeAgo(story.createdAt),
         commentCount: story._count.comments,
         likeCount: story._count.likes,
-        isLiked: userId ? (story.likes?.length > 0) : false,
+        isLiked: userId ? story.likes?.length > 0 : false,
       })),
       pagination: {
         currentPage: pageNumber,
@@ -499,6 +500,8 @@ const addComment = async (req, res) => {
   try {
     const { storyId } = req.params;
     const { comment } = req.body;
+    const userRole = req.role;
+    const userId = req.user.id;
 
     // Find the story
     const story = await prisma.story.findUnique({
@@ -516,24 +519,86 @@ const addComment = async (req, res) => {
     const newComment = await prisma.comment.create({
       data: {
         content: comment,
-        studentId: req.user.id,
+        ...(userRole === "student"
+          ? { studentId: userId }
+          : userRole === "parent"
+          ? { parentId: userId }
+          : {
+              therapistId: userId,
+            }),
         storyId: storyId,
       },
       select: {
         content: true,
         createdAt: true,
-        student: {
-          select: {
-            id: true,
-            fullName: true,
-            studentImage: true,
-          },
-        },
+
+        ...(userRole === "student"
+          ? {
+              student: {
+                select: {
+                  id: true,
+                  fullName: true,
+                  studentImage: true,
+                },
+              },
+            }
+          : userRole === "parent"
+          ? {
+              parent: {
+                select: {
+                  id: true,
+                  fullName: true,
+                  parentImage: true,
+                },
+              },
+            }
+          : {
+              therapist: {
+                select: {
+                  id: true,
+                  userName: true,
+                  therapistImage: true,
+                },
+              },
+            }),
       },
     });
 
+    let newCommentData;
+    if (userRole === "student") {
+      newCommentData = {
+        id: newComment.student.id,
+        name: newComment.student.fullName,
+        image: newComment.student.studentImage,
+        createdAt: newComment.createdAt,
+        content: newComment.content,
+      };
+    }
+    if (userRole === "parent") {
+      newCommentData = {
+        id: newComment.parent.id,
+        name: newComment.parent.fullName,
+        image: newComment.parent.parentImage,
+        createdAt: newComment.createdAt,
+        content: newComment.content,
+      };
+    }
+    if (userRole === "therapist") {
+      newCommentData = {
+        id: newComment.therapist.id,
+        name: newComment.therapist.userName,
+        image: newComment.therapist.therapistImage,
+        createdAt: newComment.createdAt,
+        content: newComment.content,
+      };
+    }
     return res.status(200).json({
-      data: newComment,
+      data: {
+        user: newCommentData,
+        content: newComment.content,
+        createdAt: newComment.createdAt,
+        userType: userRole.toUpperCase(),
+      },
       message: "Comment added successfully",
       status: true,
     });
@@ -546,6 +611,102 @@ const addComment = async (req, res) => {
   }
 };
 
+// const getStoryComments = async (req, res) => {
+//   try {
+//     const { storyId, page = 1, limit = 10 } = req.query;
+
+//     // Convert to numbers and validate
+//     const pageNum = parseInt(page);
+//     const limitNum = parseInt(limit);
+
+//     // Validate page and limit
+//     if (isNaN(pageNum) || isNaN(limitNum) || pageNum < 1 || limitNum < 1) {
+//       return res.status(400).json({
+//         message: "Invalid pagination parameters",
+//         status: false,
+//       });
+//     }
+
+//     // Calculate skip value for pagination
+//     const skip = (pageNum - 1) * limitNum;
+
+//     // Get total count of comments
+//     const totalComments = await prisma.comment.count({
+//       where: { storyId },
+//     });
+
+//     // Get paginated comments
+//     const storyComments = await prisma.story.findFirstOrThrow({
+//       where: { id: storyId },
+//       select: {
+//         comments: {
+//           skip,
+//           take: limitNum,
+//           select: {
+//             content: true,
+//             createdAt: true,
+//             student: {
+//               select: {
+//                 id: true,
+//                 fullName: true,
+//                 studentImage: true,
+//               },
+//             },
+//             parent: {
+//               select: {
+//                 id: true,
+//                 fullName: true,
+//                 parentImage: true,
+//               },
+//             },
+//             therapist: {
+//               select: {
+//                 id: true,
+//                 userName: true,
+//                 therapistImage: true,
+//               },
+//             },
+//           },
+//           orderBy: {
+//             createdAt: "desc", // Most recent comments first
+//           },
+//         },
+//       },
+//     });
+
+//     // Calculate pagination metadata
+//     const totalPages = Math.ceil(totalComments / limitNum);
+//     const hasNextPage = pageNum < totalPages;
+//     const hasPrevPage = pageNum > 1;
+
+//     return res.status(200).json({
+//       data: storyComments.comments,
+//       pagination: {
+//         currentPage: pageNum,
+//         totalPages,
+//         totalComments,
+//         hasNextPage,
+//         hasPrevPage,
+//         limit: limitNum,
+//       },
+//       message: "Comments retrieved successfully",
+//       status: true,
+//     });
+//   } catch (error) {
+//     if (error.code === "P2025") {
+//       return res.status(404).json({
+//         message: "Story not found",
+//         status: false,
+//       });
+//     }
+
+//     return res.status(500).json({
+//       message: "Error while getting comments",
+//       error: error.message,
+//       status: false,
+//     });
+//   }
+// };
 const getStoryComments = async (req, res) => {
   try {
     const { storyId, page = 1, limit = 10 } = req.query;
@@ -578,6 +739,7 @@ const getStoryComments = async (req, res) => {
           skip,
           take: limitNum,
           select: {
+            id: true,
             content: true,
             createdAt: true,
             student: {
@@ -585,6 +747,20 @@ const getStoryComments = async (req, res) => {
                 id: true,
                 fullName: true,
                 studentImage: true,
+              },
+            },
+            parent: {
+              select: {
+                id: true,
+                fullName: true,
+                parentImage: true,
+              },
+            },
+            therapist: {
+              select: {
+                id: true,
+                userName: true,
+                therapistImage: true,
               },
             },
           },
@@ -595,13 +771,50 @@ const getStoryComments = async (req, res) => {
       },
     });
 
+    // Transform the comments to include userType and normalize the user data
+    const transformedComments = storyComments.comments.map((comment) => {
+      let userData = null;
+      let userType = null;
+
+      if (comment.student) {
+        userData = {
+          id: comment.student.id,
+          name: comment.student.fullName,
+          image: comment.student.studentImage,
+        };
+        userType = "STUDENT";
+      } else if (comment.parent) {
+        userData = {
+          id: comment.parent.id,
+          name: comment.parent.fullName,
+          image: comment.parent.parentImage,
+        };
+        userType = "PARENT";
+      } else if (comment.therapist) {
+        userData = {
+          id: comment.therapist.id,
+          name: comment.therapist.userName,
+          image: comment.therapist.therapistImage,
+        };
+        userType = "THERAPIST";
+      }
+
+      return {
+        id: comment.id,
+        content: comment.content,
+        createdAt: comment.createdAt,
+        userType,
+        user: userData,
+      };
+    });
+
     // Calculate pagination metadata
     const totalPages = Math.ceil(totalComments / limitNum);
     const hasNextPage = pageNum < totalPages;
     const hasPrevPage = pageNum > 1;
 
     return res.status(200).json({
-      data: storyComments.comments,
+      data: transformedComments,
       pagination: {
         currentPage: pageNum,
         totalPages,
@@ -628,7 +841,6 @@ const getStoryComments = async (req, res) => {
     });
   }
 };
-
 const toggleStoryLike = async (req, res) => {
   try {
     const { storyId } = req.params;
@@ -653,7 +865,11 @@ const toggleStoryLike = async (req, res) => {
         storyId,
         ...(userRole === "student"
           ? { studentId: userId }
-          : { parentId: userId }),
+          : userRole === "parent"
+          ? { parentId: userId }
+          : {
+              therapistId: userId,
+            }),
       },
     });
 
@@ -676,7 +892,11 @@ const toggleStoryLike = async (req, res) => {
         storyId,
         ...(userRole === "student"
           ? { studentId: userId }
-          : { parentId: userId }),
+          : userRole === "parent"
+          ? { parentId: userId }
+          : {
+              therapistId: userId,
+            }),
       },
     });
 
@@ -695,6 +915,46 @@ const toggleStoryLike = async (req, res) => {
   }
 };
 
+const getTopThreeLikedStoryes = async (req, res) => {
+  try {
+    const stories = await prisma.story.findMany({
+      take: 3,
+      orderBy: {
+        likes: {
+          _count: "desc",
+        },
+      },
+      select: {
+        image: true,
+        title: true,
+        content: true,
+        student: {
+          select: {
+            studentImage: true,
+            fullName: true,
+          },
+        },
+        _count: {
+          select: {
+            likes: true,
+          },
+        },
+      },
+    });
+    return res.status(200).json({
+      data: stories,
+      message: "Top 3 liked stories retrieved successfully",
+      status: true,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error while retrieving top 3 liked stories",
+      error: error.message,
+      status: false,
+    });
+  }
+};
+
 export {
   createStory,
   getStories,
@@ -704,4 +964,5 @@ export {
   addComment,
   getStoryComments,
   toggleStoryLike,
+  getTopThreeLikedStoryes,
 };
