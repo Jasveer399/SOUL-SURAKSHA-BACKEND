@@ -16,7 +16,8 @@ const createParentSchema = z.object({
 
   phone: z
     .string()
-    .regex(/^\+?[1-9]\d{1,14}$/, { message: "Invalid phone number format" }),
+    // .regex(/^\+?[1-9]\d{1,14}$/, { message: "Invalid phone number format" })
+    .optional(),
 
   email: z.string().email({ message: "Invalid email address" }).toLowerCase(),
 
@@ -71,35 +72,35 @@ const createParent = async (req, res) => {
     }
 
     // Check phone number across all user types
-    const [studentCheck, parentCheck, therapistCheck] =
-      await prisma.$transaction([
-        prisma.student.findFirst({
-          where: { phone },
-          select: { phone: true },
-        }),
-        prisma.parent.findFirst({
-          where: { phone },
-          select: { phone: true },
-        }),
-        prisma.therapist.findFirst({
-          where: { phone },
-          select: { phone: true },
-        }),
-      ]);
+    // const [studentCheck, parentCheck, therapistCheck] =
+    //   await prisma.$transaction([
+    //     prisma.student.findFirst({
+    //       where: { phone },
+    //       select: { phone: true },
+    //     }),
+    //     prisma.parent.findFirst({
+    //       where: { phone },
+    //       select: { phone: true },
+    //     }),
+    //     prisma.therapist.findFirst({
+    //       where: { phone },
+    //       select: { phone: true },
+    //     }),
+    //   ]);
 
-    if (studentCheck?.phone === phone || therapistCheck?.phone === phone) {
-      return res.status(409).json({
-        message: "Mobile number already registered with another account",
-        status: false,
-      });
-    }
+    // if (studentCheck?.phone === phone || therapistCheck?.phone === phone) {
+    //   return res.status(409).json({
+    //     message: "Mobile number already registered with another account",
+    //     status: false,
+    //   });
+    // }
 
-    if (parentCheck?.phone === phone) {
-      return res.status(409).json({
-        message: "Mobile number already registered with a parent account",
-        status: false,
-      });
-    }
+    // if (parentCheck?.phone === phone) {
+    //   return res.status(409).json({
+    //     message: "Mobile number already registered with a parent account",
+    //     status: false,
+    //   });
+    // }
 
     // Hash password
     const hashedPassword = await encryptPassword(password);

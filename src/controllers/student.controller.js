@@ -14,7 +14,7 @@ const CreateUserSchema = z.object({
 
   phone: z
     .string()
-    .regex(/^\+?[1-9]\d{1,14}$/, { message: "Invalid phone number format" })
+    // .regex(/^\+?[1-9]\d{1,14}$/, { message: "Invalid phone number format" })
     .optional(),
 
   email: z.string().email({ message: "Invalid email address" }).toLowerCase(),
