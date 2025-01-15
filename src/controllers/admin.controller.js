@@ -4,6 +4,7 @@ import {
   decryptPassword,
   encryptPassword,
 } from "../utils/passwordEncryptDescrypt.js";
+import { deleteSingleObjectFromS3 } from "./aws.controller.js";
 
 const createAdminAccount = async (req, res) => {
   try {
@@ -65,15 +66,15 @@ const loginAdmin = async (req, res) => {
       });
     }
 
-    const accessToken = await accessTokenGenerator(admin.id, "admin");
+    const { accessToken } = await accessTokenGenerator(admin.id, "admin");
 
     return res.status(200).json({
       data: {
         id: admin.id,
         name: admin.name,
         email: admin.email,
-        accessToken,
       },
+      accessToken,
       message: "Login successful",
       status: true,
     });
@@ -88,7 +89,7 @@ const loginAdmin = async (req, res) => {
 
 const updateDetails = async (req, res) => {
   try {
-    const { name, email, imgUrl } = req.body;
+    const { name, email, imgUrl, imageBeforeChange } = req.body;
 
     const updatedAdmin = await prisma.admin.update({
       where: {
@@ -100,6 +101,10 @@ const updateDetails = async (req, res) => {
         imgUrl,
       },
     });
+
+    if (imageBeforeChange) {
+      await deleteSingleObjectFromS3(imageBeforeChange);
+    }
 
     if (!updatedAdmin) {
       return res.status(400).json({

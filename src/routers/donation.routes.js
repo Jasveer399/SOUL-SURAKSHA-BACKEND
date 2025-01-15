@@ -20,7 +20,7 @@ router.put("/updateDonation/:id", updateDonation);
 router.delete("/deleteDonation/:id", deleteDonation);
 router.get("/getSpecificDonation/:id", getSpecificDonation);
 router.get("/getSpecificUserDonationRecord", verifyJWT(["therapist"]), getSpecificUserDonationRecord);
-router.get("/getInavtiveDonations", verifyJWT(["therapist"]), getInavtiveDonations);
+router.get("/getInavtiveDonations", verifyJWT(["therapist", "admin"]), getInavtiveDonations);
 router.post("/createOrder", verifyJWT(["therapist"]), createOrder);
 router.post("/createDonationRecord", verifyJWT(["therapist"]), createDonationRecord);
 

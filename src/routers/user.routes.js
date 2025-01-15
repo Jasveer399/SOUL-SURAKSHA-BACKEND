@@ -7,7 +7,7 @@ const router = Router();
 
 router.get(
   "/getcurrentuser",
-  verifyJWT(["student", "therapist", "parent"]),
+  verifyJWT(["student", "therapist", "parent", "admin"]),
   getCurrentUser
 );
 router.post('/createUser', validateUserType, createUser);

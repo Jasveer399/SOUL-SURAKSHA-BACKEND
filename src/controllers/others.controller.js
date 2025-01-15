@@ -150,7 +150,7 @@ const getActiveDonations = async (req, res) => {
       progress: Number(
         (((donation.receivedAmount || 0) / donation.totalAmount) * 100).toFixed(
           2
-        ),
+        )
       ),
       daysLeft: calculateDaysLeft(donation.timePeriod),
     }));
@@ -322,7 +322,8 @@ const getActiveDonations = async (req, res) => {
         yesterdayAmount > 0
           ? Number(
               (
-                ((todayAmount - yesterdayAmount) / yesterdayAmount) * 100
+                ((todayAmount - yesterdayAmount) / yesterdayAmount) *
+                100
               ).toFixed(2)
             )
           : 0;
@@ -357,7 +358,6 @@ const getActiveDonations = async (req, res) => {
   }
 };
 
-
 // Get top rated therapists
 const getTopRatedTherapists = async (req, res) => {
   try {
@@ -376,8 +376,24 @@ const getTopRatedTherapists = async (req, res) => {
       take: 5,
     });
 
+    // Get the total count of high-rated reviews (4 or 5 stars)
+    const highRatedReviewsCount = await prisma.review.count({
+      where: {
+        rating: {
+          gte: 4, // Greater than or equal to 4 stars
+        },
+      },
+    });
+
+    // Get total reviews count
+    const totalReviewsCount = await prisma.review.count();
+
     return res.status(200).json({
       data: topTherapists,
+      reviews: {
+        highRated: highRatedReviewsCount,
+        total: totalReviewsCount,
+      },
       status: true,
       message: "Top rated therapists fetched successfully",
     });
