@@ -46,6 +46,8 @@ const EditParentSchema = z.object({
     .min(2, { message: "Name must be at least 2 characters long" })
     .max(50, { message: "Name cannot exceed 50 characters" }),
 
+  email: z.string().email({ message: "Invalid email address" }).toLowerCase(),
+
   parentImage: z.string().optional(),
   imageBeforeChange: z.string().optional().nullable(),
 });
@@ -153,17 +155,19 @@ const createParent = async (req, res) => {
 // Edit Parent Controller
 const editParent = async (req, res) => {
   try {
-    const { fullName, parentImage, imageBeforeChange } = EditParentSchema.parse(
-      req.body
-    );
+    const { fullName, parentImage, email, imageBeforeChange } =
+      EditParentSchema.parse(req.body);
 
     const parentId = req.user.id;
+
+    console.log("parentId: >>", parentId);
 
     const updatedParent = await prisma.parent.update({
       where: { id: parentId },
       data: {
         fullName,
         parentImage,
+        email,
       },
       select: {
         id: true,
@@ -173,6 +177,8 @@ const editParent = async (req, res) => {
         createdAt: true,
       },
     });
+
+    console.log("updatedParent: >>", updatedParent);
 
     if (imageBeforeChange) {
       await deleteSingleObjectFromS3(imageBeforeChange);
