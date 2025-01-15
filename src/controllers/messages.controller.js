@@ -26,7 +26,6 @@ const sendMessage = async (req, res) => {
 
     // If no conversation exists, create one
     if (!conversation) {
-      // Determine which ID belongs to student/therapist based on senderType
       const conversationData =
         senderType === "STUDENT"
           ? {
