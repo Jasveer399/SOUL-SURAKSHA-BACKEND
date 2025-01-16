@@ -43,9 +43,11 @@ model Student {
   likes        Like[]
   Conversation Conversation[]
   Review       Review[]
+  quizAttempts QuizAttempt[]
 
   @@index([email])
 }
+
 
 model Parent {
   id          String   @id @default(uuid())
@@ -264,4 +266,37 @@ model Review {
 
   @@index([studentId])
   @@index([therapistId])
+}
+
+
+model Quiz {
+  id        String       @id @default(uuid())
+  question  String
+  option1   String
+  option2   String
+  option3   String
+  option4   String
+  answer    String
+  isActive  Boolean     @default(true)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  
+  // Relations
+  attempts  QuizAttempt[]
+}
+
+model QuizAttempt {
+  id        String   @id @default(uuid())
+  studentId String
+  quizId    String
+  answer    String
+  isCorrect Boolean
+  attemptedAt DateTime @default(now())
+  
+  // Relations
+  student   Student  @relation(fields: [studentId], references: [id])
+  quiz      Quiz     @relation(fields: [quizId], references: [id])
+
+  @@index([studentId])
+  @@index([quizId])
 }
