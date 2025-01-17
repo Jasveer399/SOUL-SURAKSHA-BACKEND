@@ -3,6 +3,7 @@ import {
   createQuiz,
   editQuiz,
   getQuizzes,
+  getUnattemptedQuizzes,
   submitQuizAttempt,
   toogleisActive,
 } from "../controllers/quiz.controller.js";
@@ -15,4 +16,9 @@ router.get("/getQuizzes", getQuizzes);
 router.put("/editQuiz/:id", editQuiz);
 router.put("/toogleisActive/:id/:isActive", toogleisActive);
 router.post("/attemptQuiz", verifyJWT(["student"]), submitQuizAttempt);
+router.get(
+  "/getUnattemptedQuizzes",
+  verifyJWT(["student"]),
+  getUnattemptedQuizzes
+);
 export { router as quizRoutes };

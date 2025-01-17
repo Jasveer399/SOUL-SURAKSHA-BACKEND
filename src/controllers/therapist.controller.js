@@ -176,8 +176,6 @@ const editTherapist = async (req, res) => {
       imageBeforeChange,
     } = EditUserSchema.parse(req.body);
 
-    console.log("req.body:>>", req.body);
-
     const therapistId = req.user.id;
 
     const updatedTherapist = await prisma.therapist.update({

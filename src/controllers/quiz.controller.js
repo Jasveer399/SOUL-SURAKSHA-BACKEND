@@ -154,14 +154,14 @@ const submitQuizAttempt = async (req, res) => {
     }
 
     // Create the attempt
-    // await prisma.quizAttempt.create({
-    //   data: {
-    //     studentId,
-    //     quizId,
-    //     answer,
-    //     isCorrect: answer === quiz.answer,
-    //   },
-    // });
+    await prisma.quizAttempt.create({
+      data: {
+        studentId,
+        quizId,
+        answer,
+        isCorrect: answer === quiz.answer,
+      },
+    });
 
     if (quiz.answer === answer) {
       return res.status(200).json({
@@ -260,6 +260,72 @@ const toogleisActive = async (req, res) => {
     });
   }
 };
+
+const getUnattemptedQuizzes = async (req, res) => {
+  try {
+    const studentId = req.user.id;
+    const { page = 1, limit = 10, activequiz } = req.query;
+    const pageNumber = Math.max(page, 1);
+    const pageSize = Math.min(limit, 10);
+    const skip = (pageNumber - 1) * pageSize;
+
+    const where = {
+      AND: [
+        activequiz !== undefined ? { isActive: activequiz === "true" } : {},
+        {
+          NOT: {
+            attempts: {
+              some: {
+                studentId,
+              },
+            },
+          },
+        },
+      ],
+    };
+
+    console.log("StudentId: >>", studentId);
+
+    // Get unattempted quizzes and total count
+    const [quizzes, totalQuizzes] = await Promise.all([
+      prisma.quiz.findMany({
+        where,
+        skip: skip,
+        take: pageSize,
+        orderBy: { createdAt: "desc" },
+        include: {
+          _count: {
+            select: { attempts: true },
+          },
+        },
+      }),
+      prisma.quiz.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(totalQuizzes / pageSize);
+    const hasNextPage = pageNumber < totalPages;
+    const hasPreviousPage = pageNumber > 1;
+
+    return res.status(200).json({
+      data: quizzes,
+      pagination: {
+        totalQuizzes,
+        totalPages,
+        hasNextPage,
+        hasPreviousPage,
+        currentPage: Number(page),
+      },
+      message: "Unattempted quizzes fetched successfully",
+      status: true,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      message: "Something went wrong",
+      status: false,
+    });
+  }
+};
 export {
   createQuiz,
   getQuizzes,
@@ -267,4 +333,5 @@ export {
   submitQuizAttempt,
   getStudentQuizResults,
   toogleisActive,
+  getUnattemptedQuizzes,
 };
