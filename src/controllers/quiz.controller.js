@@ -164,6 +164,14 @@ const submitQuizAttempt = async (req, res) => {
     });
 
     if (quiz.answer === answer) {
+      prisma.student.update({
+        where: {
+          id: studentId,
+        },
+        data: {
+          quizScore: { increment: 1 },
+        },
+      });
       return res.status(200).json({
         message: "You have given the correct answer",
         iscorrect: true,

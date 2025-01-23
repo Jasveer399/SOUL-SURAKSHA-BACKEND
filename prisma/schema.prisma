@@ -35,6 +35,7 @@ model Student {
   studentImage String?
   age          Int?
   trustPhoneNo String?
+  quizScore    Int      @default(0)
   createdAt    DateTime @default(now())
 
   // Relations
