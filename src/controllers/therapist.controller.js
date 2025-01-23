@@ -50,6 +50,11 @@ const EditUserSchema = z.object({
 
   qualifications: z.string().optional(),
 
+  gender: z.string().optional(),
+
+  recoveryEmail: z.string().optional(),
+  licenseNO: z.string().optional(),
+
   languageType: z.array(z.string()).optional(),
 
   profileImage: z.string().optional(),
@@ -172,6 +177,9 @@ const editTherapist = async (req, res) => {
       qualifications,
       bio,
       specialization,
+      gender,
+      recoveryEmail,
+      licenseNO,
       experience,
       imageBeforeChange,
     } = EditUserSchema.parse(req.body);
@@ -184,6 +192,9 @@ const editTherapist = async (req, res) => {
         userName,
         languageType,
         therapistImage: profileImage,
+        gender,
+        recoveryEmail,
+        licenseNO,
         qualifications,
         bio,
         specialization,

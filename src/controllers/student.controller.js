@@ -44,6 +44,8 @@ const EditUserSchema = z.object({
     .max(50, { message: "fullName cannot exceed 50 characters" }),
 
   age: z.number().int().min(0).max(120).optional(),
+  gender: z.string().optional(),
+  dob: z.string().optional(),
 
   profileImage: z.string().optional(),
 
@@ -138,8 +140,17 @@ const createStudent = async (req, res) => {
 
 const editStudent = async (req, res) => {
   try {
-    const { fullName, age, profileImage, trustPhoneNo, imageBeforeChange } =
-      EditUserSchema.parse(req.body);
+    const {
+      fullName,
+      age,
+      profileImage,
+      gender,
+      dob,
+      trustPhoneNo,
+      imageBeforeChange,
+    } = EditUserSchema.parse(req.body);
+
+    console.log("Req . Body ===>", req.body);
 
     const studentId = req.user.id;
 
@@ -149,6 +160,8 @@ const editStudent = async (req, res) => {
         fullName,
         age,
         studentImage: profileImage,
+        gender,
+        dob,
         trustPhoneNo,
       },
       select: {

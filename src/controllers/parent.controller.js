@@ -48,6 +48,7 @@ const EditParentSchema = z.object({
     .max(50, { message: "Name cannot exceed 50 characters" }),
 
   email: z.string().email({ message: "Invalid email address" }).toLowerCase(),
+  gender: z.string().optional(),
 
   parentImage: z.string().optional(),
   imageBeforeChange: z.string().optional().nullable(),
@@ -156,7 +157,7 @@ const createParent = async (req, res) => {
 // Edit Parent Controller
 const editParent = async (req, res) => {
   try {
-    const { fullName, parentImage, email, imageBeforeChange } =
+    const { fullName, parentImage, email, gender, imageBeforeChange } =
       EditParentSchema.parse(req.body);
 
     const parentId = req.user.id;
@@ -168,6 +169,7 @@ const editParent = async (req, res) => {
       data: {
         fullName,
         parentImage,
+        gender,
         email,
       },
       select: {

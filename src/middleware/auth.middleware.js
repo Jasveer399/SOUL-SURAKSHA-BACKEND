@@ -4,7 +4,7 @@ import { prisma } from "../db/prismaClientConfig.js";
 export const verifyJWT = (roles) => async (req, res, next) => {
   try {
     const token = req.header("Authorization")?.replace("Bearer ", "");
-    console.log("token", token);
+    // console.log("token", token);
 
     if (!token) {
       return res.status(401).json({
@@ -14,8 +14,6 @@ export const verifyJWT = (roles) => async (req, res, next) => {
     }
 
     const decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
-
-    console.log("decodedToken", decodedToken);
 
     if (!decodedToken?.id || !decodedToken?.userType) {
       return res.status(401).json({
@@ -53,12 +51,46 @@ export const verifyJWT = (roles) => async (req, res, next) => {
             },
           },
         });
+
+        const CommentsCount = await prisma.comment.count({
+          where: {
+            therapistId: user.id,
+          },
+        });
+
+        const DonationCount = await prisma.donationRecord.count({
+          where: {
+            therapistId: user.id,
+          },
+        });
+        user = {
+          ...user,
+          donationCount: DonationCount,
+          commentCount: CommentsCount,
+        };
         role = "therapist";
       }
       if (!user && roles.includes("parent")) {
         user = await prisma.parent.findUnique({
           where: { id: decodedToken?.id },
         });
+
+        const CommentsCount = await prisma.comment.count({
+          where: {
+            parentId: user.id,
+          },
+        });
+
+        const DonationCount = await prisma.donationRecord.count({
+          where: {
+            parentId: user.id,
+          },
+        });
+        user = {
+          ...user,
+          donationCount: DonationCount,
+          commentCount: CommentsCount,
+        };
         role = "parent";
       }
       if (!user && roles.includes("admin")) {
@@ -89,11 +121,44 @@ export const verifyJWT = (roles) => async (req, res, next) => {
           },
         },
       });
+
+      const CommentsCount = await prisma.comment.count({
+        where: {
+          therapistId: user.id,
+        },
+      });
+
+      const DonationCount = await prisma.donationRecord.count({
+        where: {
+          therapistId: user.id,
+        },
+      });
+      user = {
+        ...user,
+        donationCount: DonationCount,
+        commentCount: CommentsCount,
+      };
       role = "therapist";
       if (!user && roles.includes("parent")) {
         user = await prisma.parent.findUnique({
           where: { id: decodedToken?.id },
         });
+        const CommentsCount = await prisma.comment.count({
+          where: {
+            parentId: user.id,
+          },
+        });
+
+        const DonationCount = await prisma.donationRecord.count({
+          where: {
+            parentId: user.id,
+          },
+        });
+        user = {
+          ...user,
+          donationCount: DonationCount,
+          commentCount: CommentsCount,
+        };
         role = "parent";
       }
       if (!user && roles.includes("admin")) {
@@ -106,6 +171,22 @@ export const verifyJWT = (roles) => async (req, res, next) => {
       user = await prisma.parent.findUnique({
         where: { id: decodedToken?.id },
       });
+      const CommentsCount = await prisma.comment.count({
+        where: {
+          parentId: user.id,
+        },
+      });
+
+      const DonationCount = await prisma.donationRecord.count({
+        where: {
+          parentId: user.id,
+        },
+      });
+      user = {
+        ...user,
+        donationCount: DonationCount,
+        commentCount: CommentsCount,
+      };
       role = "parent";
       if (!user && roles.includes("admin")) {
         user = await prisma.admin.findUnique({
