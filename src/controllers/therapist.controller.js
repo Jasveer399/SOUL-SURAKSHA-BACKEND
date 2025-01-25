@@ -377,10 +377,59 @@ const getAllTherapist = async (_, res) => {
   }
 };
 
+const getSpecificTherapist = async (req, res) => {
+  try {
+    const therapist = await prisma.therapist.findUnique({
+      where: { id: req.params.id },
+      select: {
+        id: true,
+        userName: true,
+        specialization: true,
+        therapistImage: true,
+        experience: true,
+        phone: true,
+        bio: true,
+        languageType: true,
+        qualifications: true,
+        ratings: true,
+        Review: {
+          select: {
+            title: true,
+            review: true,
+            rating: true,
+            createdAt: true,
+            Student: {
+              select: {
+                fullName: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+        },
+      },
+    });
+    return res.status(200).json({
+      data: therapist,
+      message: "Therapist fetched successfully",
+      status: true,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      message: "Error while fetching therapist",
+      error: error.message,
+      status: false,
+    });
+  }
+};
+
 export {
   createTherapist,
   loginTherapist,
   logoutTherapist,
   editTherapist,
   getAllTherapist,
+  getSpecificTherapist
 };
