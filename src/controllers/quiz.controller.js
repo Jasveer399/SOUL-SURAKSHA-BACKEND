@@ -292,8 +292,6 @@ const getUnattemptedQuizzes = async (req, res) => {
       ],
     };
 
-    console.log("StudentId: >>", studentId);
-
     // Get unattempted quizzes and total count
     const [quizzes, totalQuizzes] = await Promise.all([
       prisma.quiz.findMany({
