@@ -200,6 +200,18 @@ const editTherapist = async (req, res) => {
         specialization,
         experience: parseFloat(experience),
       },
+      select: {
+        id: true,
+        userName: true,
+        email: true,
+        languageType: true,
+        qualifications: true,
+        bio: true,
+        licenseNO: true,
+        specialization: true,
+        experience: true,
+        createdAt: true,
+      },
     });
 
     if (imageBeforeChange) {
