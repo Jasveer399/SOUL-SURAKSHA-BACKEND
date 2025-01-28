@@ -74,7 +74,6 @@ const EditUserSchema = z.object({
 const createTherapist = async (req, res) => {
   try {
     // Validate input using Zod
-    console.log("Request body", req.body);
     const {
       userName,
       phone,
