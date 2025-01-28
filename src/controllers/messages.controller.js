@@ -351,9 +351,6 @@ const handleReq = async (req, res) => {
     const { id } = req.params;
     const status = req.body.status === "accept" ? "Accepted" : "Dismiss";
 
-    console.log("id: >>", id);
-    console.log("status: >>", status);
-
     const conversation = await prisma.conversation.update({
       where: {
         id,
