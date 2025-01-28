@@ -229,15 +229,15 @@ const editTherapist = async (req, res) => {
         experience: parseFloat(experience),
       },
       select: {
-        id: true,
         userName: true,
         email: true,
         languageType: true,
+        therapistImage: true,
         qualifications: true,
         bio: true,
+        licenseNO: true,
         specialization: true,
         experience: true,
-        createdAt: true,
       },
     });
 
