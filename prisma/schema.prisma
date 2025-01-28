@@ -58,6 +58,7 @@ model Parent {
   email       String   @unique
   password    String
   parentImage String?
+  dob         String? @default("")
   createdAt   DateTime @default(now())
 
   // Relations
@@ -75,6 +76,7 @@ model Therapist {
   email          String           @unique
   password       String
   gender         String?
+  dob            String? @default("")
   recoveryEmail  String?
   licenseNO      String?
   therapistImage String?

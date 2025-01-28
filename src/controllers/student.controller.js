@@ -30,9 +30,13 @@ const CreateUserSchema = z.object({
       }
     ),
 
-  age: z.number().int().min(0).max(120).optional(),
+  // age: z.number().int().min(0).max(120).optional(),
+
+  dob: z.string().optional(),
 
   profileImage: z.string().optional(),
+
+  gender: z.string().optional(),
 
   trustPhoneNo: z.string().optional(),
 });
@@ -67,9 +71,10 @@ const createStudent = async (req, res) => {
       phone,
       email,
       password,
-      age,
+      dob,
       profileImage,
       trustPhoneNo,
+      gender
     } = CreateUserSchema.parse(req.body);
 
     // Check if email already exists
@@ -95,15 +100,18 @@ const createStudent = async (req, res) => {
         email,
         studentImage: profileImage,
         password: hashedPassword,
-        age,
+        gender,
         trustPhoneNo,
+        dob
       },
       select: {
         id: true,
         fullName: true,
         email: true,
-        age: true,
+        dob: true,
         createdAt: true,
+        gender: true,
+        trustPhoneNo: true,
       },
     });
     const { accessToken } = await accessTokenGenerator(

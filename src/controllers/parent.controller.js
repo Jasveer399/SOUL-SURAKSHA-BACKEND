@@ -32,6 +32,8 @@ const createParentSchema = z.object({
       }
     ),
   parentImage: z.string().optional(),
+  dob: z.string().optional(),
+  gender: z.string().optional(),
 });
 
 // Parent Login Schema
@@ -57,7 +59,7 @@ const EditParentSchema = z.object({
 // Create Parent Controller
 const createParent = async (req, res) => {
   try {
-    const { fullName, phone, email, password, parentImage } =
+    const { fullName, phone, email, password, parentImage, dob, gender } =
       createParentSchema.parse(req.body);
 
     // Check if email already exists
@@ -114,6 +116,8 @@ const createParent = async (req, res) => {
         email,
         password: hashedPassword,
         parentImage,
+        dob,
+        gender
       },
       select: {
         id: true,
@@ -121,6 +125,8 @@ const createParent = async (req, res) => {
         email: true,
         parentImage: true,
         createdAt: true,
+        dob: true,
+        gender: true,
       },
     });
 

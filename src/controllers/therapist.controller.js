@@ -33,6 +33,11 @@ const createdTherapistSchema = z.object({
     ),
   languageType: z.array(z.string()).optional(),
   qualifications: z.string().optional(),
+  dob: z.string().optional(),
+  gender: z.string().optional(),
+  specialization: z.string().optional(),
+  experience: z.string().optional(),
+  licenseNO: z.string().optional(),
 
   //   profileImage: z.string().optional(),
 });
@@ -70,8 +75,19 @@ const createTherapist = async (req, res) => {
   try {
     // Validate input using Zod
     console.log("Request body", req.body);
-    const { userName, phone, email, password, languageType, qualifications } =
-      createdTherapistSchema.parse(req.body);
+    const {
+      userName,
+      phone,
+      email,
+      password,
+      dob,
+      gender,
+      specialization,
+      experience,
+      licenseNO,
+      languageType,
+      qualifications,
+    } = createdTherapistSchema.parse(req.body);
 
     // Check if email already exists
     const emailExists = await prisma.therapist.findUnique({
@@ -116,15 +132,21 @@ const createTherapist = async (req, res) => {
     // }
 
     // Hash password
+
     const hashedPassword = await encryptPassword(password);
 
     // Create user
     const createdTherapist = await prisma.therapist.create({
       data: {
         userName,
-        phone,
         email,
         password: hashedPassword,
+        dob,
+        gender,
+        specialization,
+        experience: parseFloat(experience),
+        licenseNO,
+        phone,
         languageType,
         qualifications,
       },
@@ -135,6 +157,12 @@ const createTherapist = async (req, res) => {
         createdAt: true,
         qualifications: true,
         languageType: true,
+        dob: true,
+        gender: true,
+        specialization: true,
+        experience: true,
+        licenseNO: true,
+        phone: true,
       },
     });
     const { accessToken } = await accessTokenGenerator(
@@ -431,5 +459,5 @@ export {
   logoutTherapist,
   editTherapist,
   getAllTherapist,
-  getSpecificTherapist
+  getSpecificTherapist,
 };

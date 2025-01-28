@@ -288,15 +288,15 @@ const getCurrentUserStories = async (req, res) => {
     return res.status(200).json({
       data: stories.map((story) => ({
         ...story,
-        comments: story.comments.map((comment) => ({
-          content: comment.content,
-          studentImage: comment.student.studentImage,
-          fullName: comment.student.fullName,
-          timeAgo: timeAgo(comment.createdAt),
+        comments: story?.comments?.map((comment) => ({
+          content: comment?.content,
+          studentImage: comment.student?.studentImage,
+          fullName: comment.student?.fullName,
+          timeAgo: timeAgo(comment?.createdAt),
         })),
-        timeAgo: timeAgo(story.createdAt),
-        commentCount: story._count.comments,
-        likeCount: story._count.likes,
+        timeAgo: timeAgo(story?.createdAt),
+        commentCount: story._count?.comments,
+        likeCount: story._count?.likes,
       })),
       pagination: {
         currentPage: pageNumber,
