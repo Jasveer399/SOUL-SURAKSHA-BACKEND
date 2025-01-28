@@ -150,8 +150,6 @@ const editStudent = async (req, res) => {
       imageBeforeChange,
     } = EditUserSchema.parse(req.body);
 
-    console.log("Req . Body ===>", req.body);
-
     const studentId = req.user.id;
 
     const updatedStudent = await prisma.student.update({

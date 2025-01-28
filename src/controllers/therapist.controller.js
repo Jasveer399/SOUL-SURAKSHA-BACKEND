@@ -200,17 +200,6 @@ const editTherapist = async (req, res) => {
         specialization,
         experience: parseFloat(experience),
       },
-      select: {
-        id: true,
-        userName: true,
-        email: true,
-        languageType: true,
-        qualifications: true,
-        bio: true,
-        specialization: true,
-        experience: true,
-        createdAt: true,
-      },
     });
 
     if (imageBeforeChange) {
@@ -431,5 +420,5 @@ export {
   logoutTherapist,
   editTherapist,
   getAllTherapist,
-  getSpecificTherapist
+  getSpecificTherapist,
 };
