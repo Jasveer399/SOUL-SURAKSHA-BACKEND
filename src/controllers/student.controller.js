@@ -74,7 +74,7 @@ const createStudent = async (req, res) => {
       dob,
       profileImage,
       trustPhoneNo,
-      gender
+      gender,
     } = CreateUserSchema.parse(req.body);
 
     // Check if email already exists
@@ -102,7 +102,7 @@ const createStudent = async (req, res) => {
         password: hashedPassword,
         gender,
         trustPhoneNo,
-        dob
+        dob,
       },
       select: {
         id: true,
@@ -171,11 +171,12 @@ const editStudent = async (req, res) => {
         trustPhoneNo,
       },
       select: {
-        id: true,
         fullName: true,
-        email: true,
         age: true,
-        createdAt: true,
+        studentImage: true,
+        gender: true,
+        dob: true,
+        trustPhoneNo: true,
       },
     });
     if (imageBeforeChange) {
