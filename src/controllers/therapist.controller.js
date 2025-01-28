@@ -74,7 +74,6 @@ const EditUserSchema = z.object({
 const createTherapist = async (req, res) => {
   try {
     // Validate input using Zod
-    console.log("Request body", req.body);
     const {
       userName,
       phone,
@@ -100,38 +99,6 @@ const createTherapist = async (req, res) => {
         status: false,
       });
     }
-
-    // const [studentCheck, parentCheck, therapistCheck] =
-    //   await prisma.$transaction([
-    //     prisma.student.findFirst({
-    //       where: { phone },
-    //       select: { phone: true },
-    //     }),
-    //     prisma.parent.findFirst({
-    //       where: { phone },
-    //       select: { phone: true },
-    //     }),
-    //     prisma.therapist.findFirst({
-    //       where: { phone },
-    //       select: { phone: true },
-    //     }),
-    //   ]);
-
-    // if (studentCheck?.phone === phone || parentCheck?.phone === phone) {
-    //   return res.status(409).json({
-    //     message: "Mobile number already registered with a user account.",
-    //     status: false,
-    //   });
-    // }
-
-    // if (therapistCheck?.phone === phone) {
-    //   return res.status(409).json({
-    //     message: "Mobile number already registered with a therapist account.",
-    //     status: false,
-    //   });
-    // }
-
-    // Hash password
 
     const hashedPassword = await encryptPassword(password);
 
