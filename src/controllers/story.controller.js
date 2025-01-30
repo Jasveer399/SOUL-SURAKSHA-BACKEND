@@ -18,6 +18,7 @@ const CreateStorySchema = z.object({
   image: z.string().optional(),
 
   audio: z.string().optional(),
+  audioDuration: z.number().optional(),
 });
 
 // Zod schema for pagination query parameters
@@ -51,7 +52,8 @@ const createStory = async (req, res) => {
   try {
     // Extract and validate input using Zod
     const studentId = req.user?.id;
-    const { title, content, image, audio } = CreateStorySchema.parse(req.body);
+    const { title, content, image, audioDuration, audio } =
+      CreateStorySchema.parse(req.body);
 
     // Verify that the author (user) exists
     const authorExists = await prisma.student.findUnique({
@@ -74,6 +76,7 @@ const createStory = async (req, res) => {
         content,
         image: image || "",
         audio: audio || "",
+        audioDuration: audioDuration || 0,
         studentId,
       },
       select: {
@@ -82,6 +85,7 @@ const createStory = async (req, res) => {
         content: true,
         image: true,
         audio: true,
+        audioDuration: true,
         createdAt: true,
         studentId: true,
       },
@@ -155,18 +159,6 @@ const getStories = async (req, res) => {
               },
             },
           }),
-          // comments: {
-          //   select: {
-          //     content: true,
-          //     createdAt: true,
-          //     student: {
-          //       select: {
-          //         studentImage: true,
-          //         fullName: true,
-          //       },
-          //     },
-          //   },
-          // },
           _count: {
             select: {
               comments: true,
