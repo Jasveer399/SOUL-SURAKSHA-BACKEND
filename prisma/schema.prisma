@@ -132,16 +132,17 @@ model DonationRecord {
 }
 
 model Story {
-  id        String    @id @default(uuid())
-  title     String? // You might want to add this
-  content   String
-  image     String?
-  audio     String?
-  createdAt DateTime  @default(now())
-  studentId String
-  student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  comments  Comment[]
-  likes     Like[]
+  id            String        @id @default(uuid())
+  title         String? // You might want to add this
+  content       String
+  image         String?
+  audio         String?
+  audioDuration Float?
+  createdAt     DateTime  @default(now())
+  studentId     String
+  student       Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  comments      Comment[]
+  likes         Like[]
 
   @@index([studentId])
 }
