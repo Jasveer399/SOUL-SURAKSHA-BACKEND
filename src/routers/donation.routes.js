@@ -19,9 +19,9 @@ router.get("/getActiveDonations", getActiveDonations);
 router.put("/updateDonation/:id", updateDonation);
 router.delete("/deleteDonation/:id", deleteDonation);
 router.get("/getSpecificDonation/:id", getSpecificDonation);
-router.get("/getSpecificUserDonationRecord", verifyJWT(["therapist"]), getSpecificUserDonationRecord);
-router.get("/getInavtiveDonations", verifyJWT(["therapist", "admin"]), getInavtiveDonations);
-router.post("/createOrder", verifyJWT(["therapist"]), createOrder);
-router.post("/createDonationRecord", verifyJWT(["therapist"]), createDonationRecord);
+router.get("/getSpecificUserDonationRecord", verifyJWT(["therapist", "parent"]), getSpecificUserDonationRecord);
+router.get("/getInavtiveDonations", verifyJWT(["therapist", "admin", "parent"]), getInavtiveDonations);
+router.post("/createOrder", verifyJWT(["therapist", "parent"]), createOrder);
+router.post("/createDonationRecord", verifyJWT(["therapist", "parent"]), createDonationRecord);
 
 export { router as donationRoutes };
