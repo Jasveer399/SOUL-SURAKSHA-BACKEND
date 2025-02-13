@@ -135,8 +135,8 @@ model Story {
   id            String        @id @default(uuid())
   title         String? // You might want to add this
   content       String
-  image         String?
-  audio         String?
+  image         String @default("")
+  audio         String @default("")
   audioDuration Float?
   createdAt     DateTime  @default(now())
   studentId     String

@@ -41,11 +41,11 @@ const EditStorySchema = z.object({
     .max(2500, { message: "Story content cannot exceed 2500 characters" })
     .optional(),
 
-  image: z.string().optional().nullable(),
-  imageBeforeChange: z.string().optional().nullable(),
+  image: z.string().optional(),
+  imageBeforeChange: z.string().optional(),
 
-  audio: z.string().optional().nullable(),
-  audioBeforeChange: z.string().optional().nullable(),
+  audio: z.string().optional(),
+  audioBeforeChange: z.string().optional(),
 });
 
 const createStory = async (req, res) => {
