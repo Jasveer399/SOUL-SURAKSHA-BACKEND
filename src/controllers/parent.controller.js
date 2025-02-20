@@ -109,10 +109,10 @@ const createParent = async (req, res) => {
     const hashedPassword = await encryptPassword(password);
 
     // Create parent
-    const createdParent = await prisma.parent.update({
-      where: {
-        phone,
-      },
+    const createdParent = await prisma.parent.create({
+      // where: {
+      //   phone,
+      // },
       data: {
         fullName,
         phone,
