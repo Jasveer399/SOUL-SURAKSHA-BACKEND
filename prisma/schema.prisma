@@ -26,7 +26,7 @@ model Admin {
 model Student {
   id           String   @id @default(uuid())
   fullName     String
-  phone        String?
+  phone        String?  @unique
   bio          String?
   dob          String?
   gender       String?
@@ -35,6 +35,8 @@ model Student {
   studentImage String?
   age          Int?
   trustPhoneNo String?
+  otp          String?
+  isOtpVerify  Boolean  @default(false)
   quizScore    Int      @default(0)
   createdAt    DateTime @default(now())
 
@@ -53,12 +55,14 @@ model Student {
 model Parent {
   id          String   @id @default(uuid())
   fullName    String
-  phone       String?  
+  phone       String?  @unique
   gender      String?
   email       String   @unique
   password    String
   parentImage String?
   dob         String? @default("")
+  otp         String?
+  isOtpVerify Boolean  @default(false)
   createdAt   DateTime @default(now())
 
   // Relations
@@ -72,11 +76,13 @@ model Parent {
 model Therapist {
   id             String           @id @default(uuid())
   userName       String
-  phone          String?
+  phone          String?          @unique
   email          String           @unique
   password       String
   gender         String?
   dob            String? @default("")
+  otp            String?
+  isOtpVerify    Boolean  @default(false)
   recoveryEmail  String?
   licenseNO      String?
   therapistImage String?

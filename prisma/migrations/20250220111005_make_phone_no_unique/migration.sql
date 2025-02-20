@@ -1,0 +1,8 @@
+-- AlterTable
+ALTER TABLE "Parent" ALTER COLUMN "otp" SET DATA TYPE TEXT;
+
+-- AlterTable
+ALTER TABLE "Student" ALTER COLUMN "otp" SET DATA TYPE TEXT;
+
+-- AlterTable
+ALTER TABLE "Therapist" ALTER COLUMN "otp" SET DATA TYPE TEXT;
