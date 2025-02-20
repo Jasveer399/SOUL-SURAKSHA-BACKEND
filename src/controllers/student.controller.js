@@ -93,7 +93,7 @@ const createStudent = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Create user
-    const createdStudent = await prisma.student.upsert({
+    const createdStudent = await prisma.student.update({
       where: {
         phone,
       },
