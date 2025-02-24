@@ -12,10 +12,7 @@ const CreateUserSchema = z.object({
     .min(2, { message: "fullName must be at least 2 characters long" })
     .max(50, { message: "fullName cannot exceed 50 characters" }),
 
-  phone: z
-    .string()
-    // .regex(/^\+?[1-9]\d{1,14}$/, { message: "Invalid phone number format" })
-    .optional(),
+  phone: z.string(),
 
   email: z.string().email({ message: "Invalid email address" }).toLowerCase(),
 
@@ -93,10 +90,10 @@ const createStudent = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Create user
-    const createdStudent = await prisma.student.create({
-      // where: {
-      //   phone,
-      // },
+    const createdStudent = await prisma.student.update({
+      where: {
+        phone,
+      },
       data: {
         fullName,
         phone,

@@ -474,7 +474,7 @@ const createUserAndGetOtp = async (req, res) => {
       await prisma.$transaction([
         prisma.student.findUnique({
           where: { phone: phone },
-          select: { phone: true },
+          select: { phone: true, email: true },
         }),
         prisma.parent.findUnique({
           where: { phone: phone },
@@ -520,9 +520,9 @@ const createUserAndGetOtp = async (req, res) => {
                 data: {
                   phone: phone,
                   otp,
-                  fullName: "",
-                  email: "",
-                  password: "",
+                  fullName: `user_${Date.now()}`, // Temporary unique name
+                  email: `temp_${Date.now()}@temp.com`, // Temporary unique email
+                  password: "123", // Temporary password
                 },
               });
           break;
@@ -537,9 +537,9 @@ const createUserAndGetOtp = async (req, res) => {
                 data: {
                   phone: phone,
                   otp,
-                  fullName: "",
-                  email: "",
-                  password: "",
+                  fullName: `user_${Date.now()}`,
+                  email: `temp_${Date.now()}@temp.com`,
+                  password: "123",
                 },
               });
           break;
@@ -554,9 +554,9 @@ const createUserAndGetOtp = async (req, res) => {
                 data: {
                   phone: phone,
                   otp,
-                  userName: "",
-                  email: "",
-                  password: "",
+                  userName: `user_${Date.now()}`,
+                  email: `temp_${Date.now()}@temp.com`,
+                  password: "123",
                   languageType: [],
                 },
               });
@@ -564,6 +564,17 @@ const createUserAndGetOtp = async (req, res) => {
       }
     } catch (dbError) {
       console.error("Database Error:", dbError);
+
+      // Handle unique constraint violations
+      if (dbError.code === "P2002") {
+        const field = dbError.meta.target[0];
+        return res.status(409).json({
+          message: `${field} already exists`,
+          errorType: "UNIQUE_CONSTRAINT_ERROR",
+          status: false,
+        });
+      }
+
       return res.status(500).json({
         message: "Database operation failed",
         errorType: "DATABASE_ERROR",
