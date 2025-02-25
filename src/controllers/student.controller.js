@@ -4,6 +4,7 @@ import { generateAccessToken } from "../utils/generateAccessToken.js";
 import { prisma } from "../db/prismaClientConfig.js";
 import { deleteSingleObjectFromS3 } from "./aws.controller.js";
 import { accessTokenGenerator } from "../utils/Helper.js";
+import { timeAgo } from "../utils/Helper.js";
 
 // Zod validation schema for user creation
 const CreateUserSchema = z.object({
@@ -58,6 +59,12 @@ const EditUserSchema = z.object({
 const UserLoginSchema = z.object({
   email: z.string().email({ message: "Invalid email address" }).toLowerCase(),
   password: z.string().min(1, { message: "Password is required" }),
+});
+
+// Add this schema for pagination parameters
+const StudentStoriesPaginationSchema = z.object({
+  page: z.string().transform(Number).default("1"),
+  limit: z.string().transform(Number).default("10"),
 });
 
 const createStudent = async (req, res) => {
@@ -363,6 +370,173 @@ const getAllStudents = async (_, res) => {
   }
 };
 
+const getStudentProfileDetails = async (req, res) => {
+  try {
+    const studentId = req.params.id;
+
+    // Parse and validate pagination parameters
+    const { page, limit } = StudentStoriesPaginationSchema.parse({
+      page: req.query.page || "1",
+      limit: req.query.limit || "10",
+    });
+
+    // Calculate pagination offsets
+    const skip = (page - 1) * limit;
+
+    // Get student details
+    const studentDetails = await prisma.student.findUnique({
+      where: { id: studentId },
+      select: {
+        id: true,
+        fullName: true,
+        studentImage: true,
+        quizScore: true,
+        _count: {
+          select: {
+            stories: true,
+          },
+        },
+      },
+    });
+
+    if (!studentDetails) {
+      return res.status(404).json({
+        message: "User not found",
+        status: false,
+      });
+    }
+
+    // Get total stories count for this student
+    const totalStories = studentDetails._count.stories;
+
+    // Get paginated stories with comments and likes
+    const stories = await prisma.story.findMany({
+      where: {
+        studentId: studentId,
+      },
+      select: {
+        id: true,
+        title: true,
+        content: true,
+        image: true,
+        audio: true,
+        audioDuration: true,
+        createdAt: true,
+        student: {
+          select: {
+            id: true,
+            fullName: true,
+            studentImage: true,
+          },
+        },
+        comments: {
+          select: {
+            id: true,
+            content: true,
+            createdAt: true,
+            student: {
+              select: {
+                id: true,
+                fullName: true,
+                studentImage: true,
+              },
+            },
+          },
+        },
+        likes: {
+          select: {
+            id: true,
+            student: {
+              select: {
+                id: true,
+                fullName: true,
+                studentImage: true,
+              },
+            },
+          },
+        },
+        _count: {
+          select: {
+            comments: true,
+            likes: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      skip: skip,
+      take: limit,
+    });
+
+    // Format stories with additional data
+    const formattedStories = stories.map((story) => ({
+      id: story.id,
+      title: story.title,
+      content: story.content,
+      image: story.image,
+      audio: story.audio,
+      audioDuration: story.audioDuration,
+      createdAt: story.createdAt,
+      timeAgo: timeAgo(story.createdAt),
+      student: story.student,
+      comments: story.comments.map((comment) => ({
+        ...comment,
+        timeAgo: timeAgo(comment.createdAt),
+      })),
+      commentsCount: story._count.comments,
+      likes: story.likes,
+      likesCount: story._count.likes,
+    }));
+
+    // Calculate pagination metadata
+    const totalPages = Math.ceil(totalStories / limit);
+    const hasNextPage = page < totalPages;
+    const hasPreviousPage = page > 1;
+
+    return res.status(200).json({
+      data: {
+        id: studentDetails.id,
+        fullName: studentDetails.fullName,
+        studentImage: studentDetails.studentImage,
+        // This clearly shows the TOTAL number of stories the student has
+        totalStoriesCount: totalStories,
+        // This shows how many stories are actually returned in this response
+        returnedStoriesCount: formattedStories.length,
+        stories: formattedStories,
+        quizScore: studentDetails.quizScore,
+        pagination: {
+          totalStories,
+          totalPages,
+          currentPage: page,
+          limit,
+          hasNextPage,
+          hasPreviousPage,
+        },
+      },
+      message: "User details retrieved successfully",
+      status: true,
+    });
+  } catch (error) {
+    console.error(error);
+
+    // Handle Zod validation errors
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        message: "Validation Error",
+        errors: error.errors.map((e) => e.message),
+        status: false,
+      });
+    }
+
+    return res.status(500).json({
+      message: "Error while retrieving user details",
+      error: error.message,
+      status: false,
+    });
+  }
+};
+
 export {
   createStudent,
   loginStudent,
@@ -370,4 +544,5 @@ export {
   getStudentProfile,
   editStudent,
   getAllStudents,
+  getStudentProfileDetails,
 };
