@@ -103,6 +103,29 @@ const createStudent = async (req, res) => {
       gender,
     } = CreateUserSchema.parse(req.body);
 
+    const [parentCheck, therapistCheck] = await prisma.$transaction([
+      prisma.parent.findUnique({
+        where: { email: email },
+        select: { phone: true },
+      }),
+      prisma.therapist.findUnique({
+        where: { email: email },
+        select: { phone: true },
+      }),
+    ]);
+
+    if (parentCheck) {
+      return res.status(409).json({
+        message: "Email already registered as a parent",
+        status: false,
+      });
+    }
+    if (therapistCheck) {
+      return res.status(409).json({
+        message: "Email already registered as a therapist",
+        status: false,
+      });
+    }
     // Check if email already exists
     const emailExists = await prisma.student.findUnique({
       where: { email },

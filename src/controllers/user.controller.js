@@ -662,8 +662,12 @@ const handleGoogleSignup = async (googleUser, userType) => {
       where: { email },
     });
 
-    if (existingStudent || existingParent) {
-      throw new Error("Email already registered");
+    if (existingStudent) {
+      throw new Error("Email already registered as a student");
+    }
+
+    if (existingParent) {
+      throw new Error("Email already registered as a parent");
     }
 
     let createdUser;
