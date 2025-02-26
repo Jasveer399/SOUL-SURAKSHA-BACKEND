@@ -146,11 +146,25 @@ model Story {
   audioDuration Float?
   createdAt     DateTime  @default(now())
   studentId     String
+  isComplete    Boolean  @default(true)
   student       Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  chunks        StoryChunk?
   comments      Comment[]
   likes         Like[]
 
   @@index([studentId])
+}
+
+model StoryChunk {
+  storyId        String   @id
+  story          Story    @relation(fields: [storyId], references: [id])
+  content        String   @db.Text
+  chunkIndex     Int
+  receivedChunks Int
+  totalChunks    Int
+  isComplete     Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 model Comment {

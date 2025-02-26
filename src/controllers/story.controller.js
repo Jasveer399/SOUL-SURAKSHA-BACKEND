@@ -21,6 +21,21 @@ const CreateStorySchema = z.object({
   audioDuration: z.number().optional(),
 });
 
+const ChunkStorySchema = z.object({
+  content: z.string().min(1, { message: "Chunk content cannot be empty" }),
+  title: z
+    .string()
+    .min(2, { message: "Title must be at least 2 characters long" })
+    .max(50, { message: "Title cannot exceed 50 characters" })
+    .optional(),
+  image: z.string().optional(),
+  audio: z.string().optional(),
+  audioDuration: z.number().optional(),
+  isChunk: z.boolean().default(true),
+  chunkIndex: z.number().int().min(0),
+  totalChunks: z.number().int().min(1),
+  storyId: z.string().optional(), // Required for all chunks except the first one
+});
 // Zod schema for pagination query parameters
 const StoryPaginationSchema = z.object({
   page: z.string().transform(Number).default("1"),
@@ -29,31 +44,39 @@ const StoryPaginationSchema = z.object({
 
 // Zod validation schema for editing a post
 const EditStorySchema = z.object({
-  storyId: z.string().uuid({ message: "Invalid Story ID" }),
   title: z
     .string()
     .min(2, { message: "Title must be at least 2 characters long" })
     .max(50, { message: "Title cannot exceed 50 characters" })
     .optional(),
-  content: z
-    .string()
-    .min(1, { message: "Story content cannot be empty" })
-    .max(2500, { message: "Story content cannot exceed 2500 characters" })
-    .optional(),
-
+  content: z.string().min(1, { message: "Story content cannot be empty" }),
   image: z.string().optional(),
-  imageBeforeChange: z.string().optional(),
-
   audio: z.string().optional(),
+  audioDuration: z.number().optional(),
+  imageBeforeChange: z.string().optional(),
   audioBeforeChange: z.string().optional(),
+
+  // Chunk-related fields
+  isChunk: z.boolean().optional(),
+  chunkIndex: z.number().int().min(0).optional(),
+  totalChunks: z.number().int().min(1).optional(),
+  storyId: z.string().optional(),
 });
 
 const createStory = async (req, res) => {
   try {
     // Extract and validate input using Zod
     const studentId = req.user?.id;
-    const { title, content, image, audioDuration, audio } =
-      CreateStorySchema.parse(req.body);
+
+    // For chunked content, we'll check if we're receiving a chunk or a complete story
+    const isChunk = req.body.isChunk === true;
+    const chunkIndex = req.body.chunkIndex || 0;
+    const totalChunks = req.body.totalChunks || 1;
+    const storyId = req.body.storyId; // Only provided for chunks after the first one
+
+    const { title, content, image, audioDuration, audio } = isChunk
+      ? ChunkStorySchema.parse(req.body)
+      : CreateStorySchema.parse(req.body);
 
     // Verify that the author (user) exists
     const authorExists = await prisma.student.findUnique({
@@ -69,33 +92,179 @@ const createStory = async (req, res) => {
       });
     }
 
-    // Create post
-    const createdPost = await prisma.story.create({
-      data: {
-        title,
-        content,
-        image: image || "",
-        audio: audio || "",
-        audioDuration: audioDuration || 0,
-        studentId,
-      },
-      select: {
-        id: true,
-        title: true,
-        content: true,
-        image: true,
-        audio: true,
-        audioDuration: true,
-        createdAt: true,
-        studentId: true,
-      },
-    });
+    // Handle story creation or chunk append based on the isChunk flag
+    if (!isChunk) {
+      // Regular story creation (unchanged)
+      const createdPost = await prisma.story.create({
+        data: {
+          title,
+          content,
+          image: image || "",
+          audio: audio || "",
+          audioDuration: audioDuration || 0,
+          studentId,
+        },
+        select: {
+          id: true,
+          title: true,
+          content: true,
+          image: true,
+          audio: true,
+          audioDuration: true,
+          createdAt: true,
+          studentId: true,
+        },
+      });
 
-    return res.status(201).json({
-      data: createdPost,
-      message: "Story created successfully",
-      status: true,
-    });
+      return res.status(201).json({
+        data: createdPost,
+        message: "Story created successfully",
+        status: true,
+      });
+    } else {
+      // Handle chunked content
+      if (chunkIndex === 0) {
+        // First chunk - create a new story
+        const newStory = await prisma.story.create({
+          data: {
+            title: title || "Draft Story",
+            content: content,
+            image: image || "",
+            audio: audio || "",
+            audioDuration: audioDuration || 0,
+            studentId,
+            isComplete: false,
+          },
+          select: {
+            id: true,
+            title: true,
+            content: true,
+            image: true,
+            audio: true,
+            audioDuration: true,
+            createdAt: true,
+            studentId: true,
+          },
+        });
+
+        // Also create a StoryChunk record to track chunks
+        await prisma.storyChunk.create({
+          data: {
+            storyId: newStory.id,
+            chunkIndex: 0,
+            content: content,
+            receivedChunks: 1,
+            totalChunks,
+          },
+        });
+
+        return res.status(201).json({
+          data: {
+            ...newStory,
+            chunksReceived: 1,
+            totalChunks,
+          },
+          message: "First chunk received successfully",
+          status: true,
+        });
+      } else {
+        // Subsequent chunks - append to existing story
+        if (!storyId) {
+          return res.status(400).json({
+            message: "Story ID is required for chunk uploads",
+            status: false,
+          });
+        }
+
+        // Verify story exists and belongs to this student
+        const existingStory = await prisma.story.findFirst({
+          where: {
+            id: storyId,
+            studentId,
+            isComplete: false,
+          },
+        });
+
+        if (!existingStory) {
+          return res.status(404).json({
+            message: "Story not found or already completed",
+            status: false,
+          });
+        }
+
+        // Update the story chunk tracking
+        const chunkTracker = await prisma.storyChunk.findUnique({
+          where: {
+            storyId,
+          },
+        });
+
+        if (!chunkTracker) {
+          return res.status(404).json({
+            message: "Story chunk tracking information not found",
+            status: false,
+          });
+        }
+
+        // Update the story with the new content
+        const updatedStory = await prisma.story.update({
+          where: {
+            id: storyId,
+          },
+          data: {
+            content: existingStory.content + content,
+            // Update title and other fields if provided in the final chunk
+            ...(chunkIndex === totalChunks - 1
+              ? {
+                  title: title || existingStory.title,
+                  image: image || existingStory.image,
+                  audio: audio || existingStory.audio,
+                  audioDuration: audioDuration || existingStory.audioDuration,
+                  isComplete: true,
+                }
+              : {}),
+          },
+          select: {
+            id: true,
+            title: true,
+            content: true,
+            image: true,
+            audio: true,
+            audioDuration: true,
+            createdAt: true,
+            studentId: true,
+          },
+        });
+
+        // Update the chunk tracker
+        await prisma.storyChunk.update({
+          where: {
+            storyId,
+          },
+          data: {
+            receivedChunks: chunkTracker.receivedChunks + 1,
+            content: chunkTracker.content + content,
+            isComplete: chunkIndex === totalChunks - 1,
+          },
+        });
+
+        return res.status(200).json({
+          data: {
+            ...updatedStory,
+            chunksReceived: chunkTracker.receivedChunks + 1,
+            totalChunks,
+            isComplete: chunkIndex === totalChunks - 1,
+          },
+          message:
+            chunkIndex === totalChunks - 1
+              ? "Story completed successfully"
+              : `Chunk ${
+                  chunkIndex + 1
+                } of ${totalChunks} received successfully`,
+          status: true,
+        });
+      }
+    }
   } catch (error) {
     // Handle Zod validation errors
     if (error instanceof z.ZodError) {
@@ -325,22 +494,20 @@ const editStory = async (req, res) => {
   try {
     // Extract user ID from authenticated request
     const userId = req.user.id; // Assumes you have authentication middleware
+    const storyId = req.params.storyId;
+
+    // Check if this is a chunked update
+    const isChunk = req.body.isChunk === true;
+    const chunkIndex = req.body.chunkIndex || 0;
+    const totalChunks = req.body.totalChunks || 1;
 
     // Validate input using Zod
-    const {
-      storyId,
-      title,
-      content,
-      image,
-      audio,
-      imageBeforeChange,
-      audioBeforeChange,
-    } = EditStorySchema.parse({
+    const validatedData = EditStorySchema.parse({
       ...req.body,
-      storyId: req.params.storyId, // Get storyId from URL parameter
+      storyId: storyId,
     });
 
-    // First, verify the post exists and belongs to the user
+    // First, verify the story exists and belongs to the user
     const existingStory = await prisma.story.findUnique({
       where: {
         id: storyId,
@@ -349,6 +516,11 @@ const editStory = async (req, res) => {
       select: {
         id: true,
         studentId: true,
+        content: true,
+        title: true,
+        image: true,
+        audio: true,
+        audioDuration: true,
       },
     });
 
@@ -360,52 +532,214 @@ const editStory = async (req, res) => {
       });
     }
 
-    // Prepare update data (only include fields that are provided)
-    const updateData = {};
-    if (content !== undefined) updateData.content = content;
-    if (image !== undefined) updateData.image = image;
-    if (title !== undefined) updateData.title = title;
-    if (audio !== undefined) updateData.audio = audio;
-
-    // If no update fields provided, return error
-    if (Object.keys(updateData).length === 0) {
-      return res.status(400).json({
-        message: "No update fields provided",
-        status: false,
-      });
+    // Handle file deletion if needed
+    if (validatedData.imageBeforeChange) {
+      await deleteSingleObjectFromS3(validatedData.imageBeforeChange);
     }
 
-    if (imageBeforeChange) {
-      await deleteSingleObjectFromS3(imageBeforeChange);
-    }
-    if (audioBeforeChange) {
-      await deleteSingleObjectFromS3(audioBeforeChange);
+    if (validatedData.audioBeforeChange) {
+      await deleteSingleObjectFromS3(validatedData.audioBeforeChange);
     }
 
-    // Update the post
-    const updatedStory = await prisma.story.update({
-      where: { id: storyId },
-      data: updateData,
-      select: {
-        id: true,
-        content: true,
-        image: true,
-        audio: true,
-        createdAt: true,
-        student: {
-          select: {
-            id: true,
-            fullName: true,
+    // Handle chunked or regular update differently
+    if (!isChunk) {
+      // Regular update (without chunking)
+      // Prepare update data (only include fields that are provided)
+      const updateData = {};
+      if (validatedData.content !== undefined)
+        updateData.content = validatedData.content;
+      if (validatedData.image !== undefined)
+        updateData.image = validatedData.image;
+      if (validatedData.title !== undefined)
+        updateData.title = validatedData.title;
+      if (validatedData.audio !== undefined)
+        updateData.audio = validatedData.audio;
+      if (validatedData.audioDuration !== undefined)
+        updateData.audioDuration = validatedData.audioDuration;
+
+      // If no update fields provided, return error
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({
+          message: "No update fields provided",
+          status: false,
+        });
+      }
+
+      // Update the story
+      const updatedStory = await prisma.story.update({
+        where: { id: storyId },
+        data: updateData,
+        select: {
+          id: true,
+          title: true,
+          content: true,
+          image: true,
+          audio: true,
+          audioDuration: true,
+          createdAt: true,
+          student: {
+            select: {
+              id: true,
+              fullName: true,
+            },
           },
         },
-      },
-    });
+      });
 
-    return res.status(200).json({
-      data: updatedStory,
-      message: "Story updated successfully",
-      status: true,
-    });
+      return res.status(200).json({
+        data: updatedStory,
+        message: "Story updated successfully",
+        status: true,
+      });
+    } else {
+      // Handle chunked update
+      // Check if this is the first chunk
+      if (chunkIndex === 0) {
+        // For the first chunk, we'll replace the content
+        // Find or create the StoryChunk tracking record
+        const chunkTracker = await prisma.storyChunk.findUnique({
+          where: { storyId },
+        });
+
+        if (chunkTracker) {
+          // Reset the existing tracker for a new update
+          await prisma.storyChunk.update({
+            where: { storyId },
+            data: {
+              content: validatedData.content,
+              receivedChunks: 1,
+              totalChunks,
+              isComplete: totalChunks === 1,
+            },
+          });
+        } else {
+          // Create a new tracker
+          await prisma.storyChunk.create({
+            data: {
+              storyId,
+              chunkIndex: 0,
+              content: validatedData.content,
+              receivedChunks: 1,
+              totalChunks,
+              isComplete: totalChunks === 1,
+            },
+          });
+        }
+
+        // Update the story with initial content
+        const updateData = {
+          content: validatedData.content,
+          isComplete: totalChunks === 1,
+        };
+
+        // Add other fields if provided
+        if (validatedData.title) updateData.title = validatedData.title;
+        if (validatedData.image !== undefined)
+          updateData.image = validatedData.image;
+        if (validatedData.audio !== undefined)
+          updateData.audio = validatedData.audio;
+        if (validatedData.audioDuration !== undefined)
+          updateData.audioDuration = validatedData.audioDuration;
+
+        const updatedStory = await prisma.story.update({
+          where: { id: storyId },
+          data: updateData,
+          select: {
+            id: true,
+            title: true,
+            content: true,
+            image: true,
+            audio: true,
+            audioDuration: true,
+            createdAt: true,
+          },
+        });
+
+        return res.status(200).json({
+          data: {
+            ...updatedStory,
+            chunksReceived: 1,
+            totalChunks,
+            isComplete: totalChunks === 1,
+          },
+          message:
+            totalChunks === 1
+              ? "Story updated successfully"
+              : "First chunk received successfully",
+          status: true,
+        });
+      } else {
+        // For subsequent chunks, we'll append content
+        // First, get the chunk tracker
+        const chunkTracker = await prisma.storyChunk.findUnique({
+          where: { storyId },
+        });
+
+        if (!chunkTracker) {
+          return res.status(404).json({
+            message: "Story chunk tracking information not found",
+            status: false,
+          });
+        }
+
+        // Update the chunk tracker
+        const updatedTracker = await prisma.storyChunk.update({
+          where: { storyId },
+          data: {
+            content: chunkTracker.content + validatedData.content,
+            receivedChunks: chunkTracker.receivedChunks + 1,
+            isComplete: chunkIndex === totalChunks - 1,
+          },
+        });
+
+        // Update the story with the appended content
+        const updateData = {
+          content: chunkTracker.content + validatedData.content,
+          isComplete: chunkIndex === totalChunks - 1,
+        };
+
+        // For the final chunk, update metadata if provided
+        if (chunkIndex === totalChunks - 1) {
+          if (validatedData.title) updateData.title = validatedData.title;
+          if (validatedData.image !== undefined)
+            updateData.image = validatedData.image;
+          if (validatedData.audio !== undefined)
+            updateData.audio = validatedData.audio;
+          if (validatedData.audioDuration !== undefined)
+            updateData.audioDuration = validatedData.audioDuration;
+        }
+
+        const updatedStory = await prisma.story.update({
+          where: { id: storyId },
+          data: updateData,
+          select: {
+            id: true,
+            title: true,
+            content: true,
+            image: true,
+            audio: true,
+            audioDuration: true,
+            createdAt: true,
+          },
+        });
+
+        return res.status(200).json({
+          data: {
+            ...updatedStory,
+            chunksReceived: updatedTracker.receivedChunks,
+            totalChunks,
+            isComplete: chunkIndex === totalChunks - 1,
+          },
+          message:
+            chunkIndex === totalChunks - 1
+              ? "Story updated successfully"
+              : `Chunk ${
+                  chunkIndex + 1
+                } of ${totalChunks} received successfully`,
+          status: true,
+        });
+      }
+    }
   } catch (error) {
     // Handle Zod validation errors
     if (error instanceof z.ZodError) {
@@ -427,7 +761,7 @@ const editStory = async (req, res) => {
     // Handle other errors
     console.error(error);
     return res.status(500).json({
-      message: "Error while updating post",
+      message: "Error while updating story",
       error: error.message,
       status: false,
     });
@@ -447,6 +781,8 @@ const deleteStory = async (req, res) => {
       select: {
         id: true,
         studentId: true,
+        image: true,
+        audio: true,
       },
     });
 
@@ -459,20 +795,20 @@ const deleteStory = async (req, res) => {
       });
     }
 
-    // Delete the post
-    const deletedStory = await prisma.story.delete({
-      where: { id: storyId },
-      select: {
-        image: true,
-        audio: true,
-      },
-    });
+    // Use a transaction to delete all related records and the story itself
+    await prisma.$transaction([
+      prisma.storyChunk.deleteMany({ where: { storyId } }),
+      prisma.comment.deleteMany({ where: { storyId } }),
+      prisma.like.deleteMany({ where: { storyId } }),
+      prisma.story.delete({ where: { id: storyId } }),
+    ]);
 
-    if (deletedStory.image) {
-      await deleteSingleObjectFromS3(deletedStory.image);
+    // Clean up S3 resources
+    if (existingStory.image) {
+      await deleteSingleObjectFromS3(existingStory.image);
     }
-    if (deletedStory.audio) {
-      await deleteSingleObjectFromS3(deletedStory.audio);
+    if (existingStory.audio) {
+      await deleteSingleObjectFromS3(existingStory.audio);
     }
 
     return res.status(200).json({
