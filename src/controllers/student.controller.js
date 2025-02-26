@@ -1,10 +1,12 @@
 import { z } from "zod";
 import bcrypt from "bcryptjs";
+import nodemailer from "nodemailer"; // Import Nodemailer
 import { generateAccessToken } from "../utils/generateAccessToken.js";
 import { prisma } from "../db/prismaClientConfig.js";
 import { deleteSingleObjectFromS3 } from "./aws.controller.js";
 import { accessTokenGenerator } from "../utils/Helper.js";
 import { timeAgo } from "../utils/Helper.js";
+import { generateOTP } from "../utils/otpUtils.js"; // Import generateOTP
 
 // Zod validation schema for user creation
 const CreateUserSchema = z.object({
@@ -59,13 +61,33 @@ const EditUserSchema = z.object({
 const UserLoginSchema = z.object({
   email: z.string().email({ message: "Invalid email address" }).toLowerCase(),
   password: z.string().min(1, { message: "Password is required" }),
+  otp: z.string().optional(), // OTP is optional initially
 });
 
-// Add this schema for pagination parameters
-const StudentStoriesPaginationSchema = z.object({
-  page: z.string().transform(Number).default("1"),
-  limit: z.string().transform(Number).default("10"),
+// Nodemailer transporter configuration
+const transporter = nodemailer.createTransport({
+  service: "gmail", // e.g., 'gmail'
+  auth: {
+    user: process.env.EMAIL_USER, // Your email address
+    pass: process.env.EMAIL_PASS, // Your email password or app password
+  },
 });
+
+// Function to send OTP via email
+export const sendOTP = async (email, otp) => {
+  try {
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER, // Sender address
+      to: email, // List of receivers
+      subject: "OTP Verification", // Subject line
+      html: `<p>Your OTP for login is: <b>${otp}</b></p>`, // HTML body content
+    });
+    console.log("OTP email sent successfully");
+  } catch (error) {
+    console.error("Error sending OTP email:", error);
+    throw new Error("Failed to send OTP email");
+  }
+};
 
 const createStudent = async (req, res) => {
   try {
@@ -217,7 +239,7 @@ const editStudent = async (req, res) => {
 const loginStudent = async (req, res) => {
   try {
     // Validate input using Zod
-    const { email, password } = UserLoginSchema.parse(req.body);
+    const { email, password, otp } = UserLoginSchema.parse(req.body);
 
     // Find user
     const user = await prisma.student.findUnique({
@@ -241,20 +263,63 @@ const loginStudent = async (req, res) => {
       });
     }
 
-    // Generate access token
-    const { accessToken } = await accessTokenGenerator(user.id, "student");
+    // Check if this is an OTP verification request
+    if (otp) {
+      // If OTP is provided, verify it
+      if (user.otp !== otp) {
+        return res.status(400).json({
+          message: "Invalid OTP",
+          status: false,
+        });
+      }
 
-    // Respond with token and user details
-    return res.status(200).json({
-      data: {
-        id: user.id,
-        email: user.email,
-        userType: "student",
-      },
-      accessToken,
-      message: "Logged In Successfully",
-      status: true,
-    });
+      // Clear OTP after successful verification
+      await prisma.student.update({
+        where: { email: email },
+        data: { otp: null, isMailOtpVerify: true },
+      });
+
+      // Generate access token
+      const { accessToken } = await accessTokenGenerator(user.id, "student");
+
+      // Respond with token and user details
+      return res.status(200).json({
+        data: {
+          id: user.id,
+          email: user.email,
+          userType: "student",
+        },
+        accessToken,
+        message: "Logged In Successfully",
+        status: true,
+      });
+    } else {
+      // If OTP is not provided, generate and send OTP
+      const generatedOTP = generateOTP(); // Generate 4-digit OTP
+      console.log("otp:", generatedOTP);
+
+      // Store OTP in the database
+      await prisma.student.update({
+        where: { email: email },
+        data: { otp: generatedOTP },
+      });
+
+      // Send OTP via email
+      try {
+        await sendOTP(email, generatedOTP);
+      } catch (error) {
+        return res.status(500).json({
+          message: "Failed to send OTP email",
+          status: false,
+        });
+      }
+
+      return res.status(200).json({
+        message: "OTP sent to your email. Please verify.",
+        status: true,
+        requiresOTP: true, // Indicate that OTP is required
+      });
+    }
   } catch (error) {
     // Handle Zod validation errors
     if (error instanceof z.ZodError) {

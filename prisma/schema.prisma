@@ -37,9 +37,10 @@ model Student {
   trustPhoneNo String?
   otp          String?
   isOtpVerify  Boolean  @default(false)
+  isMailOtpVerify Boolean @default(false)
   quizScore    Int      @default(0)
   createdAt    DateTime @default(now())
-
+  
   // Relations
   stories      Story[]
   comments     Comment[]
@@ -64,6 +65,7 @@ model Parent {
   dob         String? @default("")
   otp         String?
   isOtpVerify Boolean  @default(false)
+  isMailOtpVerify Boolean @default(false)
   createdAt   DateTime @default(now())
 
   // Relations
@@ -85,6 +87,7 @@ model Therapist {
   dob            String? @default("")
   otp            String?
   isOtpVerify    Boolean  @default(false)
+  isMailOtpVerify Boolean @default(false)
   recoveryEmail  String?
   licenseNO      String?
   therapistImage String?

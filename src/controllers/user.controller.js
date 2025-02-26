@@ -10,6 +10,7 @@ import {
   createStudent,
   editStudent,
   loginStudent,
+  sendOTP, // Import sendOTP
 } from "./student.controller.js";
 import {
   createTherapist,
@@ -18,10 +19,17 @@ import {
 } from "./therapist.controller.js";
 import jwt from "jsonwebtoken";
 
+// Phone validation schema
 export const phoneNumberSchema = z
   .string()
   .min(10, "Phone number must be at least 10 digits")
   .max(13, "Phone number cannot exceed 13 digits");
+
+// Email validation schema for OTP verification
+export const emailSchema = z
+  .string()
+  .email({ message: "Invalid email address" })
+  .toLowerCase();
 
 export const userTypeSchema = z.enum(["student", "parent", "therapist"], {
   errorMap: () => ({
@@ -29,16 +37,32 @@ export const userTypeSchema = z.enum(["student", "parent", "therapist"], {
   }),
 });
 
+// Schema for phone-based OTP requests
 export const otpRequestSchema = z.object({
   phone: phoneNumberSchema,
   userType: userTypeSchema,
 });
 
+// Schema for email-based OTP requests
+export const emailOtpRequestSchema = z.object({
+  email: emailSchema,
+  userType: userTypeSchema,
+});
+
+// Schema for phone-based OTP verification
 const verifyOtpSchema = z.object({
   phone: phoneNumberSchema,
   otp: z.string().length(4, "OTP must be 4 digits"),
   userType: userTypeSchema,
 });
+
+// Schema for email-based OTP verification
+const verifyEmailOtpSchema = z.object({
+  email: emailSchema,
+  otp: z.string().length(4, "OTP must be 4 digits"),
+  userType: userTypeSchema,
+});
+
 export const getCurrentUser = async (req, res) => {
   try {
     return res.status(200).json({
@@ -99,7 +123,7 @@ const createUser = async (req, res) => {
 
 const loginUser = async (req, res) => {
   try {
-    const { userType } = req.body;
+    const { userType, email, password, otp } = req.body;
 
     if (!userType) {
       return res.status(400).json({
@@ -111,16 +135,84 @@ const loginUser = async (req, res) => {
     // Convert userType to lowercase for case-insensitive comparison
     const userTypeLower = userType.toLowerCase();
 
+    // If email and password are provided but no OTP, we need to generate and send OTP
+    if (email && password && !otp) {
+      let user;
+
+      // Find the user based on userType
+      switch (userTypeLower) {
+        case "student":
+          user = await prisma.student.findUnique({
+            where: { email },
+          });
+          break;
+        case "parent":
+          user = await prisma.parent.findUnique({
+            where: { email },
+          });
+          break;
+        case "therapist":
+          user = await prisma.therapist.findUnique({
+            where: { email },
+          });
+          break;
+        default:
+          return res.status(400).json({
+            message: "Invalid user type",
+            status: false,
+          });
+      }
+
+      if (!user) {
+        return res.status(404).json({
+          message: "User not found. Check your email correctly",
+          status: false,
+        });
+      }
+
+      // Verify password (this will be handled in the specific login functions)
+
+      // Handle the login process based on user type
+      switch (userTypeLower) {
+        case "student":
+          return await loginStudent(req, res);
+        case "parent":
+          return await loginParent(req, res);
+        case "therapist":
+          return await loginTherapist(req, res);
+        default:
+          return res.status(400).json({
+            message: "Invalid user type",
+            status: false,
+          });
+      }
+    }
+
+    // If OTP is provided along with email and password, verify OTP
+    if (email && password && otp) {
+      switch (userTypeLower) {
+        case "student":
+          return await loginStudent(req, res);
+        case "parent":
+          return await loginParent(req, res);
+        case "therapist":
+          return await loginTherapist(req, res);
+        default:
+          return res.status(400).json({
+            message: "Invalid user type",
+            status: false,
+          });
+      }
+    }
+
+    // Handle other login flows (e.g., phone-based login)
     switch (userTypeLower) {
       case "student":
         return await loginStudent(req, res);
-
-      case "therapist":
-        return await loginTherapist(req, res);
-
       case "parent":
         return await loginParent(req, res);
-
+      case "therapist":
+        return await loginTherapist(req, res);
       default:
         return res.status(400).json({
           message:
@@ -129,7 +221,7 @@ const loginUser = async (req, res) => {
         });
     }
   } catch (error) {
-    console.error("Error in createUser middleware:", error);
+    console.error("Error in loginUser middleware:", error);
     return res.status(500).json({
       message: "Error processing request",
       error: error.message,
@@ -170,7 +262,214 @@ const editUser = async (req, res) => {
         });
     }
   } catch (error) {
-    console.error("Error in createUser middleware:", error);
+    console.error("Error in editUser middleware:", error);
+    return res.status(500).json({
+      message: "Error processing request",
+      error: error.message,
+      status: false,
+    });
+  }
+};
+
+// Generate and send OTP to email
+const sendEmailOtp = async (req, res) => {
+  try {
+    // Validate request body
+    const validationResult = emailOtpRequestSchema.safeParse(req.body);
+
+    if (!validationResult.success) {
+      const errors = validationResult.error.errors.map((error) => ({
+        field: error.path.join("."),
+        message: error.message,
+      }));
+
+      return res.status(400).json({
+        message: "Validation failed",
+        errors,
+        status: false,
+      });
+    }
+
+    const { email, userType } = validationResult.data;
+
+    // Check if email exists in respective user type
+    let user;
+    switch (userType) {
+      case "student":
+        user = await prisma.student.findUnique({
+          where: { email },
+        });
+        break;
+      case "parent":
+        user = await prisma.parent.findUnique({
+          where: { email },
+        });
+        break;
+      case "therapist":
+        user = await prisma.therapist.findUnique({
+          where: { email },
+        });
+        break;
+    }
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found with this email address",
+        status: false,
+      });
+    }
+
+    // Generate 4-digit OTP
+    const generatedOTP = Math.floor(1000 + Math.random() * 9000).toString();
+
+    // Store OTP in the database
+    switch (userType) {
+      case "student":
+        await prisma.student.update({
+          where: { email },
+          data: { otp: generatedOTP },
+        });
+        break;
+      case "parent":
+        await prisma.parent.update({
+          where: { email },
+          data: { otp: generatedOTP },
+        });
+        break;
+      case "therapist":
+        await prisma.therapist.update({
+          where: { email },
+          data: { otp: generatedOTP },
+        });
+        break;
+    }
+
+    // Send OTP via email
+    try {
+      await sendOTP(email, generatedOTP);
+    } catch (error) {
+      return res.status(500).json({
+        message: "Failed to send OTP email",
+        status: false,
+      });
+    }
+
+    return res.status(200).json({
+      message: "OTP sent to your email. Please verify.",
+      status: true,
+      requiresOTP: true,
+    });
+  } catch (error) {
+    console.error("Error in sendEmailOtp middleware:", error);
+    return res.status(500).json({
+      message: "Error processing request",
+      error: error.message,
+      status: false,
+    });
+  }
+};
+
+// Verify email OTP
+const verifyEmailOtp = async (req, res) => {
+  try {
+    // Validate request body
+    const validationResult = verifyEmailOtpSchema.safeParse(req.body);
+
+    if (!validationResult.success) {
+      const errors = validationResult.error.errors.map((error) => ({
+        field: error.path.join("."),
+        message: error.message,
+      }));
+
+      return res.status(400).json({
+        message: "Validation failed",
+        errors,
+        status: false,
+      });
+    }
+
+    const { email, otp, userType } = validationResult.data;
+
+    // Check if user exists and verify OTP
+    let user;
+    switch (userType) {
+      case "student":
+        user = await prisma.student.findUnique({
+          where: { email },
+        });
+        break;
+      case "parent":
+        user = await prisma.parent.findUnique({
+          where: { email },
+        });
+        break;
+      case "therapist":
+        user = await prisma.therapist.findUnique({
+          where: { email },
+        });
+        break;
+    }
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+        status: false,
+      });
+    }
+
+    if (user.otp !== otp) {
+      return res.status(400).json({
+        message: "Invalid OTP",
+        status: false,
+      });
+    }
+
+    // Update user record
+    switch (userType) {
+      case "student":
+        await prisma.student.update({
+          where: { email },
+          data: {
+            otp: null,
+            isMailOtpVerify: true,
+          },
+        });
+        break;
+      case "parent":
+        await prisma.parent.update({
+          where: { email },
+          data: {
+            otp: null,
+            isMailOtpVerify: true,
+          },
+        });
+        break;
+      case "therapist":
+        await prisma.therapist.update({
+          where: { email },
+          data: {
+            otp: null,
+            isMailOtpVerify: true,
+          },
+        });
+        break;
+    }
+
+    // Generate access token
+    const { accessToken } = await accessTokenGenerator(user.id, userType);
+
+    return res.status(200).json({
+      data: {
+        id: user.id,
+        email: user.email,
+        userType: userType,
+      },
+      accessToken,
+      message: "OTP verified successfully. Logged in.",
+      status: true,
+    });
+  } catch (error) {
+    console.error("Error in verifyEmailOtp middleware:", error);
     return res.status(500).json({
       message: "Error processing request",
       error: error.message,
@@ -763,4 +1062,6 @@ export {
   googleOauthHandler,
   createUserAndGetOtp,
   verifyOtp,
+  sendEmailOtp, // Add this
+  verifyEmailOtp, // Add this
 };

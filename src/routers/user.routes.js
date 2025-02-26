@@ -8,6 +8,8 @@ import {
   googleOauthHandler,
   loginUser,
   verifyOtp,
+  sendEmailOtp,
+  verifyEmailOtp,
 } from "../controllers/user.controller.js";
 import { validateUserType } from "../middleware/validateUserType.js";
 
@@ -30,4 +32,7 @@ router.put(
 router.get("/googleAuth", googleOauthHandler);
 router.post("/createUserAndGetOtp", createUserAndGetOtp);
 router.post("/verifyOtp", verifyOtp);
+router.post("/send-email-otp", sendEmailOtp);
+router.post("/verify-email-otp", verifyEmailOtp);
+
 export { router as userRoutes };
