@@ -10,12 +10,13 @@ import {
   createStudent,
   editStudent,
   loginStudent,
-  sendOTP, // Import sendOTP
+  sendOTP,
 } from "./student.controller.js";
 import {
   createTherapist,
   editTherapist,
   loginTherapist,
+  sendTherapistOTP,
 } from "./therapist.controller.js";
 import jwt from "jsonwebtoken";
 
