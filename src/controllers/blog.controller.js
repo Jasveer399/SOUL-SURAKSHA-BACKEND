@@ -128,53 +128,123 @@ const getBlogs = async (req, res) => {
 const getBlog = async (req, res) => {
   try {
     const { id, iscountView } = req.params;
+    const user = req.user;
+    const role = req.role;
 
-    // Get blog and increment view count in a single transaction
-    const blog = await prisma.$transaction(async (prisma) => {
+    // Get blog and manage view count in a transaction
+    const result = await prisma.$transaction(async (prisma) => {
       // First get the blog
       const blog = await prisma.blog.findUnique({
         where: { id },
+        include: {
+          viewBlog: true, // Include viewBlog to check if user has viewed this blog
+        },
       });
 
       if (!blog) {
-        return null;
+        return { blog: null };
       }
 
-      // Increment view count
-      if (iscountView === "true") {
-        await prisma.blog.update({
-          where: { id },
-          data: {
-            viewCount: {
-              increment: 1,
+      // Check if we should count this view based on user authentication
+      let isFirstView = false;
+      let viewData = null;
+
+      if (user && role === "admin") {
+        return {
+          blog: blog,
+          isFirstView,
+        };
+      }
+
+      if (user) {
+        // Determine user type and ID
+        let userType = null;
+        let userId = null;
+
+        if (role === "student") {
+          userType = "student";
+          userId = user.id;
+        } else if (role === "parent") {
+          userType = "parent";
+          userId = user.id;
+        } else if (role === "therapist") {
+          userType = "therapist";
+          userId = user.id;
+        }
+
+        if (userType && userId) {
+          // Check if this user has already viewed this blog
+          const existingView = await prisma.viewBlog.findFirst({
+            where: {
+              blogId: id,
+              [userType + "Id"]: userId, // dynamically set the correct field name
             },
-          },
-        });
+          });
+
+          // If no existing view, this is the first view for this user
+          if (!existingView) {
+            isFirstView = true;
+
+            // Create view record
+            viewData = {
+              blogId: id,
+              [userType + "Id"]: userId,
+            };
+
+            // Create the view record
+            await prisma.viewBlog.create({
+              data: viewData,
+            });
+
+            // Increment the blog's view count
+            if (iscountView === "true") {
+              await prisma.blog.update({
+                where: { id },
+                data: {
+                  viewCount: {
+                    increment: 1,
+                  },
+                },
+              });
+            }
+          }
+        }
       }
 
-      return blog;
+      // Get the updated blog after potential view count increment
+      const updatedBlog = isFirstView
+        ? await prisma.blog.findUnique({ where: { id } })
+        : blog;
+
+      return {
+        blog: updatedBlog,
+        isFirstView,
+      };
     });
 
-    if (!blog) {
+    if (!result.blog) {
       return res.status(404).json({
         message: "Blog not found",
         status: false,
       });
     }
 
-    const createdOn = new Date(blog.createdAt).toLocaleDateString("en-us", {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-      timeZone: "Asia/Kolkata", // Indian timezone
-    });
+    const createdOn = new Date(result.blog.createdAt).toLocaleDateString(
+      "en-us",
+      {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+        timeZone: "Asia/Kolkata", // Indian timezone
+      }
+    );
 
     return res.status(200).json({
       data: {
-        ...blog,
-        viewCount: blog.viewCount + 1,
+        ...result.blog,
+        // Don't manually increment viewCount here since it's already handled in the transaction
         createdOn,
-        timeAgo: timeAgo(blog.createdAt),
+        timeAgo: timeAgo(result.blog.createdAt),
       },
       message: "Blog retrieved successfully",
       status: true,

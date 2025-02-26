@@ -26,7 +26,7 @@ model Admin {
 model Student {
   id           String   @id @default(uuid())
   fullName     String
-  phone        String?  @unique
+  phone        String?  @unique 
   bio          String?
   dob          String?
   gender       String?
@@ -47,6 +47,7 @@ model Student {
   Conversation Conversation[]
   Review       Review[]
   quizAttempts QuizAttempt[]
+  viewBlog ViewBlog[]
 
   @@index([email])
 }
@@ -69,6 +70,7 @@ model Parent {
   comments       Comment[]
   likes          Like[]
   DonationRecord DonationRecord[]
+  viewBlog ViewBlog[]
 
   @@index([email])
 }
@@ -99,6 +101,7 @@ model Therapist {
   comments       Comment[]
   likes          Like[]
   DonationRecord DonationRecord[]
+  viewBlog ViewBlog[]
 }
 
 model Donation {
@@ -221,8 +224,24 @@ model Blog {
   image        String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  
+  // Relations
+  viewBlog ViewBlog[]
 }
 
+
+model ViewBlog {
+  id        String   @id @default(uuid())
+  blogId    String
+  blog      Blog     @relation(fields: [blogId], references: [id])
+  studentId String?
+  student   Student?  @relation(fields: [studentId], references: [id])
+  parentId  String?
+  parent    Parent?  @relation(fields: [parentId], references: [id])
+  therapistId String?
+  therapist   Therapist?  @relation(fields: [therapistId], references: [id])
+  createdAt DateTime @default(now())
+}
 enum ConversationStatus {
   Accepted
   Pending

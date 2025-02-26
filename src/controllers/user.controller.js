@@ -378,7 +378,7 @@ const handleGoogleSignup = async (googleUser, userType) => {
             fullName,
             studentImage: picture,
             password: "", // Empty password for Google auth
-            phone: "",
+            phone: null,
             trustPhoneNo: "",
           },
           select: {
@@ -402,7 +402,7 @@ const handleGoogleSignup = async (googleUser, userType) => {
             fullName,
             parentImage: picture,
             password: "", // Empty password for Google auth
-            phone: "",
+            phone: null,
           },
           select: {
             id: true,

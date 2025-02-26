@@ -8,12 +8,17 @@ import {
   getTopViewedBlogs,
   searchBlogs,
 } from "../controllers/blog.controller.js";
+import { verifyJWT } from "../middleware/auth.middleware.js";
 
 const router = Router();
 
 router.post("/createBlog", createBlog);
 router.get("/getBlogs", getBlogs);
-router.get("/getBlog/:id/:iscountView", getBlog);
+router.get(
+  "/getBlog/:id/:iscountView",
+  verifyJWT(["student", "therapist", "parent"]),
+  getBlog
+);
 router.get("/getTopViewedBlogs", getTopViewedBlogs);
 router.get("/searchBlogs", searchBlogs);
 router.put("/editBlog/:id", editBlog);
