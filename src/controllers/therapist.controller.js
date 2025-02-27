@@ -4,7 +4,6 @@ import {
   decryptPassword,
   encryptPassword,
 } from "../utils/passwordEncryptDescrypt.js";
-import { generateAccessToken } from "../utils/generateAccessToken.js";
 import { deleteSingleObjectFromS3 } from "./aws.controller.js";
 import { accessTokenGenerator } from "../utils/Helper.js";
 import nodemailer from "nodemailer"; // Import Nodemailer
