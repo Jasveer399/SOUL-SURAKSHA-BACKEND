@@ -1,12 +1,11 @@
 import { z } from "zod";
 import bcrypt from "bcryptjs";
-import nodemailer from "nodemailer"; // Import Nodemailer
-import { generateAccessToken } from "../utils/generateAccessToken.js";
+import nodemailer from "nodemailer";
 import { prisma } from "../db/prismaClientConfig.js";
 import { deleteSingleObjectFromS3 } from "./aws.controller.js";
 import { accessTokenGenerator } from "../utils/Helper.js";
 import { timeAgo } from "../utils/Helper.js";
-import { generateOTP } from "../utils/otpUtils.js"; // Import generateOTP
+import { generateOTP } from "../utils/otpUtils.js";
 
 // Zod validation schema for user creation
 const CreateUserSchema = z.object({
@@ -14,6 +13,11 @@ const CreateUserSchema = z.object({
     .string()
     .min(2, { message: "fullName must be at least 2 characters long" })
     .max(50, { message: "fullName cannot exceed 50 characters" }),
+
+  userName: z
+    .string()
+    .min(3, { message: "userName must be at least 3 characters long" })
+    .max(15, { message: "userName cannot exceed 15 characters" }),
 
   phone: z.string(),
 
@@ -47,6 +51,11 @@ const EditUserSchema = z.object({
     .min(2, { message: "fullName must be at least 2 characters long" })
     .max(50, { message: "fullName cannot exceed 50 characters" }),
 
+  userName: z
+    .string()
+    .min(3, { message: "userName must be at least 3 characters long" })
+    .max(15, { message: "userName cannot exceed 15 characters" }),
+
   age: z.number().int().min(0).max(120).optional(),
   gender: z.string().optional(),
   dob: z.string().optional(),
@@ -62,6 +71,11 @@ const UserLoginSchema = z.object({
   email: z.string().email({ message: "Invalid email address" }).toLowerCase(),
   password: z.string().min(1, { message: "Password is required" }),
   otp: z.string().optional(), // OTP is optional initially
+});
+
+const StudentStoriesPaginationSchema = z.object({
+  page: z.string().transform(Number).default("1"),
+  limit: z.string().transform(Number).default("10"),
 });
 
 // Nodemailer transporter configuration
@@ -94,6 +108,7 @@ const createStudent = async (req, res) => {
     // Validate input using Zod
     const {
       fullName,
+      userName,
       phone,
       email,
       password,
@@ -148,6 +163,7 @@ const createStudent = async (req, res) => {
       },
       data: {
         fullName,
+        userName,
         phone,
         email,
         studentImage: profileImage,
@@ -159,6 +175,7 @@ const createStudent = async (req, res) => {
       select: {
         id: true,
         fullName: true,
+        userName: true,
         email: true,
         dob: true,
         createdAt: true,
@@ -202,6 +219,7 @@ const editStudent = async (req, res) => {
   try {
     const {
       fullName,
+      userName,
       age,
       profileImage,
       gender,
@@ -216,6 +234,7 @@ const editStudent = async (req, res) => {
       where: { id: studentId },
       data: {
         fullName,
+        userName,
         age,
         studentImage: profileImage,
         gender,
@@ -224,6 +243,7 @@ const editStudent = async (req, res) => {
       },
       select: {
         fullName: true,
+        userName: true,
         age: true,
         studentImage: true,
         gender: true,
@@ -392,6 +412,7 @@ const getStudentProfile = async (req, res) => {
       select: {
         id: true,
         fullName: true,
+        userName: true,
         email: true,
         phone: true,
         age: true,
@@ -427,6 +448,7 @@ const getAllStudents = async (_, res) => {
       select: {
         id: true,
         fullName: true,
+        userName: true,
         studentImage: true,
         _count: {
           select: {
@@ -439,6 +461,7 @@ const getAllStudents = async (_, res) => {
     const formattedStudents = students.map((student) => ({
       id: student.id,
       fullName: student.fullName,
+      userName: student.userName,
       studentImage: student.studentImage,
       storiesCount: student._count.stories,
     }));
@@ -477,6 +500,7 @@ const getStudentProfileDetails = async (req, res) => {
       select: {
         id: true,
         fullName: true,
+        userName: true,
         studentImage: true,
         quizScore: true,
         _count: {
@@ -514,6 +538,7 @@ const getStudentProfileDetails = async (req, res) => {
           select: {
             id: true,
             fullName: true,
+            userName: true,
             studentImage: true,
           },
         },
@@ -526,6 +551,7 @@ const getStudentProfileDetails = async (req, res) => {
               select: {
                 id: true,
                 fullName: true,
+                userName: true,
                 studentImage: true,
               },
             },
@@ -538,6 +564,7 @@ const getStudentProfileDetails = async (req, res) => {
               select: {
                 id: true,
                 fullName: true,
+                userName: true,
                 studentImage: true,
               },
             },
@@ -586,6 +613,7 @@ const getStudentProfileDetails = async (req, res) => {
       data: {
         id: studentDetails.id,
         fullName: studentDetails.fullName,
+        userName: studentDetails.userName,
         studentImage: studentDetails.studentImage,
         // This clearly shows the TOTAL number of stories the student has
         totalStoriesCount: totalStories,

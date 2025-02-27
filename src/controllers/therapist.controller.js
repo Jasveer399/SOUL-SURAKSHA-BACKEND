@@ -6,8 +6,8 @@ import {
 } from "../utils/passwordEncryptDescrypt.js";
 import { deleteSingleObjectFromS3 } from "./aws.controller.js";
 import { accessTokenGenerator } from "../utils/Helper.js";
-import nodemailer from "nodemailer"; // Import Nodemailer
-import { generateOTP } from "../utils/otpUtils.js"; // Import generateOTP
+import nodemailer from "nodemailer";
+import { generateOTP } from "../utils/otpUtils.js";
 
 const createdTherapistSchema = z.object({
   userName: z
