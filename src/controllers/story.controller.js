@@ -309,7 +309,7 @@ const getStories = async (req, res) => {
           student: {
             select: {
               id: true,
-              fullName: true,
+              userName: true,
               studentImage: true,
             },
           },
@@ -410,7 +410,7 @@ const getCurrentUserStories = async (req, res) => {
         include: {
           student: {
             select: {
-              fullName: true,
+              userName: true,
               studentImage: true,
             },
           },
@@ -421,7 +421,7 @@ const getCurrentUserStories = async (req, res) => {
               student: {
                 select: {
                   studentImage: true,
-                  fullName: true,
+                  userName: true,
                 },
               },
             },
@@ -452,7 +452,7 @@ const getCurrentUserStories = async (req, res) => {
         comments: story?.comments?.map((comment) => ({
           content: comment?.content,
           studentImage: comment.student?.studentImage,
-          fullName: comment.student?.fullName,
+          userName: comment.student?.userName,
           timeAgo: timeAgo(comment?.createdAt),
         })),
         timeAgo: timeAgo(story?.createdAt),
@@ -580,7 +580,7 @@ const editStory = async (req, res) => {
           student: {
             select: {
               id: true,
-              fullName: true,
+              userName: true,
             },
           },
         },
@@ -865,7 +865,7 @@ const addComment = async (req, res) => {
               student: {
                 select: {
                   id: true,
-                  fullName: true,
+                  userName: true,
                   studentImage: true,
                 },
               },
@@ -875,7 +875,7 @@ const addComment = async (req, res) => {
               parent: {
                 select: {
                   id: true,
-                  fullName: true,
+                  userName: true,
                   parentImage: true,
                 },
               },
@@ -896,7 +896,7 @@ const addComment = async (req, res) => {
     if (userRole === "student") {
       newCommentData = {
         id: newComment.student.id,
-        name: newComment.student.fullName,
+        name: newComment.student.userName,
         image: newComment.student.studentImage,
         createdAt: newComment.createdAt,
         content: newComment.content,
@@ -905,7 +905,7 @@ const addComment = async (req, res) => {
     if (userRole === "parent") {
       newCommentData = {
         id: newComment.parent.id,
-        name: newComment.parent.fullName,
+        name: newComment.parent.userName,
         image: newComment.parent.parentImage,
         createdAt: newComment.createdAt,
         content: newComment.content,
@@ -976,14 +976,14 @@ const addComment = async (req, res) => {
 //             student: {
 //               select: {
 //                 id: true,
-//                 fullName: true,
+//                 userName: true,
 //                 studentImage: true,
 //               },
 //             },
 //             parent: {
 //               select: {
 //                 id: true,
-//                 fullName: true,
+//                 userName: true,
 //                 parentImage: true,
 //               },
 //             },
@@ -1073,14 +1073,14 @@ const getStoryComments = async (req, res) => {
             student: {
               select: {
                 id: true,
-                fullName: true,
+                userName: true,
                 studentImage: true,
               },
             },
             parent: {
               select: {
                 id: true,
-                fullName: true,
+                userName: true,
                 parentImage: true,
               },
             },
@@ -1107,14 +1107,14 @@ const getStoryComments = async (req, res) => {
       if (comment.student) {
         userData = {
           id: comment.student.id,
-          name: comment.student.fullName,
+          name: comment.student.userName,
           image: comment.student.studentImage,
         };
         userType = "STUDENT";
       } else if (comment.parent) {
         userData = {
           id: comment.parent.id,
-          name: comment.parent.fullName,
+          name: comment.parent.userName,
           image: comment.parent.parentImage,
         };
         userType = "PARENT";
@@ -1259,7 +1259,7 @@ const getTopThreeLikedStoryes = async (req, res) => {
         student: {
           select: {
             studentImage: true,
-            fullName: true,
+            userName: true,
           },
         },
         _count: {
