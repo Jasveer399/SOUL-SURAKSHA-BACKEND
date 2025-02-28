@@ -825,6 +825,7 @@ const createUserAndGetOtp = async (req, res) => {
                   phone: phone,
                   otp,
                   fullName: `user_${Date.now()}`, // Temporary unique name
+                  userName: `user_${Date.now()}`, // Temporary unique username
                   email: `temp_${Date.now()}@temp.com`, // Temporary unique email
                   password: "123", // Temporary password
                 },

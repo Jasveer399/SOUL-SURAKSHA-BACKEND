@@ -26,6 +26,7 @@ model Admin {
 model Student {
   id           String   @id @default(uuid())
   fullName     String
+  userName     String   @unique
   phone        String?  @unique 
   bio          String?
   dob          String?

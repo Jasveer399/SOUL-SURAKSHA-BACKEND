@@ -21,6 +21,7 @@ CREATE TABLE "Admin" (
 CREATE TABLE "Student" (
     "id" TEXT NOT NULL,
     "fullName" TEXT NOT NULL,
+    "userName" TEXT NOT NULL,
     "phone" TEXT,
     "bio" TEXT,
     "dob" TEXT,
@@ -282,6 +283,9 @@ CREATE TABLE "QuizAttempt" (
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Admin_email_key" ON "Admin"("email");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Student_userName_key" ON "Student"("userName");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Student_phone_key" ON "Student"("phone");
