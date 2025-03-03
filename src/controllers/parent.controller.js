@@ -1,4 +1,6 @@
 import { z } from "zod";
+import bcrypt from "bcryptjs";
+import nodemailer from "nodemailer";
 import { prisma } from "../db/prismaClientConfig.js";
 import {
   decryptPassword,
@@ -6,6 +8,7 @@ import {
 } from "../utils/passwordEncryptDescrypt.js";
 import { deleteSingleObjectFromS3 } from "./aws.controller.js";
 import { accessTokenGenerator } from "../utils/Helper.js";
+import { generateOTP } from "../utils/otpUtils.js";
 
 // Parent Creation Schema
 const createParentSchema = z.object({
@@ -36,12 +39,6 @@ const createParentSchema = z.object({
   gender: z.string().optional(),
 });
 
-// Parent Login Schema
-const ParentLoginSchema = z.object({
-  email: z.string().email({ message: "Invalid email address" }).toLowerCase(),
-  password: z.string().min(1, { message: "Password is required" }),
-});
-
 // Parent Edit Schema
 const EditParentSchema = z.object({
   fullName: z
@@ -55,6 +52,38 @@ const EditParentSchema = z.object({
   parentImage: z.string().optional(),
   imageBeforeChange: z.string().optional().nullable(),
 });
+
+// Zod validation schema for user login
+const ParentLoginSchema = z.object({
+  email: z.string().email({ message: "Invalid email address" }).toLowerCase(),
+  password: z.string().min(1, { message: "Password is required" }),
+  otp: z.string().optional(), // OTP is optional initially
+});
+
+// Nodemailer transporter configuration
+const transporter = nodemailer.createTransport({
+  service: "gmail", // e.g., 'gmail'
+  auth: {
+    user: process.env.EMAIL_USER, // Your email address
+    pass: process.env.EMAIL_PASS, // Your email password or app password
+  },
+});
+
+// Function to send OTP via email
+export const sendOTP = async (email, otp) => {
+  try {
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER, // Sender address
+      to: email, // List of receivers
+      subject: "OTP Verification", // Subject line
+      html: `<p>Your OTP for login is: <b>${otp}</b></p>`, // HTML body content
+    });
+    console.log("OTP email sent successfully");
+  } catch (error) {
+    console.error("Error sending OTP email:", error);
+    throw new Error("Failed to send OTP email");
+  }
+};
 
 // Create Parent Controller
 const createParent = async (req, res) => {
@@ -214,20 +243,24 @@ const editParent = async (req, res) => {
 // Login Parent Controller
 const loginParent = async (req, res) => {
   try {
-    const { email, password } = ParentLoginSchema.parse(req.body);
+    // Validate input using Zod
+    const { email, password, otp } = ParentLoginSchema.parse(req.body);
+    console.log(req.body);
 
-    const parent = await prisma.parent.findUnique({
+    // Find user
+    const user = await prisma.parent.findUnique({
       where: { email },
     });
 
-    if (!parent) {
+    if (!user) {
       return res.status(404).json({
-        message: "Parent Account not found. Check your email correctly",
+        message: "User not found. Check your email correctly",
         status: false,
       });
     }
 
-    const isPasswordCorrect = await decryptPassword(password, parent.password);
+    // Verify password
+    const isPasswordCorrect = await bcrypt.compare(password, user.password);
 
     if (!isPasswordCorrect) {
       return res.status(401).json({
@@ -236,20 +269,65 @@ const loginParent = async (req, res) => {
       });
     }
 
-    const { accessToken } = await accessTokenGenerator(parent.id, "parent");
+    // Check if this is an OTP verification request
+    if (otp) {
+      // If OTP is provided, verify it
+      if (user.otp !== otp) {
+        return res.status(400).json({
+          message: "Invalid OTP",
+          status: false,
+        });
+      }
 
-    return res.status(200).json({
-      data: {
-        id: parent.id,
-        fullName: parent.fullName,
-        userType: "parent",
-        email: parent.email,
-      },
-      accessToken,
-      message: "Logged In Successfully",
-      status: true,
-    });
+      // Clear OTP after successful verification
+      await prisma.parent.update({
+        where: { email: email },
+        data: { otp: null, isMailOtpVerify: true },
+      });
+
+      // Generate access token
+      const { accessToken } = await accessTokenGenerator(user.id, "parent");
+
+      // Respond with token and user details
+      return res.status(200).json({
+        data: {
+          id: user.id,
+          email: user.email,
+          userType: "parent",
+        },
+        accessToken,
+        message: "Logged In Successfully",
+        status: true,
+      });
+    } else {
+      // If OTP is not provided, generate and send OTP
+      const generatedOTP = generateOTP(); // Generate 4-digit OTP
+      console.log("otp:", generatedOTP);
+
+      // Store OTP in the database
+      await prisma.parent.update({
+        where: { email: email },
+        data: { otp: generatedOTP },
+      });
+
+      // Send OTP via email
+      try {
+        await sendOTP(email, generatedOTP);
+      } catch (error) {
+        return res.status(500).json({
+          message: "Failed to send OTP email",
+          status: false,
+        });
+      }
+
+      return res.status(200).json({
+        message: "OTP sent to your email. Please verify.",
+        status: true,
+        requiresOTP: true, // Indicate that OTP is required
+      });
+    }
   } catch (error) {
+    // Handle Zod validation errors
     if (error instanceof z.ZodError) {
       return res.status(400).json({
         message: "Validation Error",
@@ -258,6 +336,7 @@ const loginParent = async (req, res) => {
       });
     }
 
+    // Handle other errors
     console.error(error);
     return res.status(500).json({
       message: "Error while logging in",
