@@ -7,6 +7,7 @@ import {
   editStory,
   getCurrentUserStories,
   getStories,
+  getSpecificStory,
   getStoryComments,
   getTopThreeLikedStoryes,
   toggleStoryLike,
@@ -31,6 +32,11 @@ router.get(
   "/getCurrentUserStories",
   verifyJWT(["student"]),
   getCurrentUserStories
+);
+router.get(
+  "/getSpecificStory/:storyId",
+  verifyJWT(["student"]),
+  getSpecificStory
 );
 router.post(
   "/like/:storyId",

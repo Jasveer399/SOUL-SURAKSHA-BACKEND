@@ -875,7 +875,7 @@ const addComment = async (req, res) => {
               parent: {
                 select: {
                   id: true,
-                  userName: true,
+                  // userName: true,
                   parentImage: true,
                 },
               },
@@ -905,7 +905,7 @@ const addComment = async (req, res) => {
     if (userRole === "parent") {
       newCommentData = {
         id: newComment.parent.id,
-        name: newComment.parent.userName,
+        // name: newComment.parent.userName,
         image: newComment.parent.parentImage,
         createdAt: newComment.createdAt,
         content: newComment.content,
@@ -1080,7 +1080,7 @@ const getStoryComments = async (req, res) => {
             parent: {
               select: {
                 id: true,
-                userName: true,
+                // userName: true,
                 parentImage: true,
               },
             },
@@ -1114,7 +1114,7 @@ const getStoryComments = async (req, res) => {
       } else if (comment.parent) {
         userData = {
           id: comment.parent.id,
-          name: comment.parent.userName,
+          // name: comment.parent.userName,
           image: comment.parent.parentImage,
         };
         userType = "PARENT";
@@ -1283,6 +1283,114 @@ const getTopThreeLikedStoryes = async (req, res) => {
   }
 };
 
+const getSpecificStory = async (req, res) => {
+  try {
+    const { storyId } = req.params;
+    const userId = req.user.id; // Assuming you want to ensure the user owns the story
+
+    // Fetch the story by ID, ensuring it belongs to the logged-in user
+    const story = await prisma.story.findUnique({
+      where: {
+        id: storyId,
+        studentId: userId, // Ensure the story belongs to the user
+      },
+      select: {
+        id: true,
+        title: true,
+        content: true,
+        image: true,
+        audio: true,
+        audioDuration: true,
+        createdAt: true,
+        student: {
+          select: {
+            id: true,
+            fullName: true,
+            userName: true,
+            studentImage: true,
+          },
+        },
+        comments: {
+          select: {
+            id: true,
+            content: true,
+            createdAt: true,
+            student: {
+              select: {
+                id: true,
+                fullName: true,
+                userName: true,
+                studentImage: true,
+              },
+            },
+          },
+        },
+        likes: {
+          select: {
+            id: true,
+            student: {
+              select: {
+                id: true,
+                fullName: true,
+                userName: true,
+                studentImage: true,
+              },
+            },
+          },
+        },
+        _count: {
+          select: {
+            comments: true,
+            likes: true,
+          },
+        },
+      },
+    });
+
+    // If the story doesn't exist or doesn't belong to the user, return a 404 error
+    if (!story) {
+      return res.status(404).json({
+        message: "Story not found or you are not authorized to view it",
+        status: false,
+      });
+    }
+
+    // Format the story with additional data
+    const formattedStory = {
+      id: story.id,
+      title: story.title,
+      content: story.content,
+      image: story.image,
+      audio: story.audio,
+      audioDuration: story.audioDuration,
+      createdAt: story.createdAt,
+      timeAgo: timeAgo(story.createdAt),
+      student: story.student,
+      comments: story.comments.map((comment) => ({
+        ...comment,
+        timeAgo: timeAgo(comment.createdAt),
+      })),
+      commentsCount: story._count.comments,
+      likes: story.likes,
+      likesCount: story._count.likes,
+    };
+
+    // Return the formatted story data
+    return res.status(200).json({
+      data: formattedStory,
+      message: "Story retrieved successfully",
+      status: true,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      message: "Error while retrieving story",
+      error: error.message,
+      status: false,
+    });
+  }
+};
+
 export {
   createStory,
   getStories,
@@ -1293,4 +1401,5 @@ export {
   getStoryComments,
   toggleStoryLike,
   getTopThreeLikedStoryes,
+  getSpecificStory, // Export the new function
 };
