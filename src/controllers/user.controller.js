@@ -649,7 +649,7 @@ const handleGoogleSignin = async (
 // Your existing handleGoogleSignup function remains the same
 const handleGoogleSignup = async (googleUser, userType) => {
   try {
-    const { email, name: fullName, picture } = googleUser;
+    const { email, name: fullName, given_name: userName, picture } = googleUser;
 
     // Convert userType to lowercase for consistency
     const userTypeLower = userType.toLowerCase();
@@ -680,6 +680,7 @@ const handleGoogleSignup = async (googleUser, userType) => {
           data: {
             email,
             fullName,
+            userName,
             studentImage: picture,
             password: "", // Empty password for Google auth
             phone: null,

@@ -181,6 +181,7 @@ model StoryChunk {
 model Report {
   id          String   @id @default(uuid())
   reason      String
+  isNew       Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

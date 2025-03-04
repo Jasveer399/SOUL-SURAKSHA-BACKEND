@@ -12,7 +12,7 @@ const CreateStorySchema = z.object({
   title: z
     .string()
     .min(2, { message: "Title must be at least 2 characters long" })
-    .max(50, { message: "Title cannot exceed 50 characters" })
+    .max(100, { message: "Title cannot exceed 100 characters" })
     .optional(),
 
   image: z.string().optional(),
@@ -26,7 +26,7 @@ const ChunkStorySchema = z.object({
   title: z
     .string()
     .min(2, { message: "Title must be at least 2 characters long" })
-    .max(50, { message: "Title cannot exceed 50 characters" })
+    .max(100, { message: "Title cannot exceed 100 characters" })
     .optional(),
   image: z.string().optional(),
   audio: z.string().optional(),
@@ -297,9 +297,30 @@ const getStories = async (req, res) => {
     const pageSize = Math.min(limit, 10); // Ensure max 10 posts per request
     const skip = (pageNumber - 1) * pageSize;
 
+    // Create a filter to exclude stories reported by the current user
+    let reportFilter = {};
+    if (userId && role) {
+      // Define which stories to exclude based on user role
+      reportFilter = {
+        NOT: {
+          reports: {
+            some:
+              role === "student"
+                ? { studentReporterId: userId }
+                : role === "parent"
+                ? { parentReporterId: userId }
+                : role === "therapist"
+                ? { therapistReporterId: userId }
+                : undefined,
+          },
+        },
+      };
+    }
+
     // Fetch posts with pagination and detailed relations
     const [stories, totalStories] = await Promise.all([
       prisma.story.findMany({
+        where: reportFilter, // Apply the report filter
         take: pageSize,
         skip: skip,
         orderBy: {
@@ -336,7 +357,9 @@ const getStories = async (req, res) => {
           },
         },
       }),
-      prisma.story.count(),
+      prisma.story.count({
+        where: reportFilter, // Apply the same filter for accurate count
+      }),
     ]);
 
     // Calculate pagination metadata
@@ -939,102 +962,6 @@ const addComment = async (req, res) => {
   }
 };
 
-// const getStoryComments = async (req, res) => {
-//   try {
-//     const { storyId, page = 1, limit = 10 } = req.query;
-
-//     // Convert to numbers and validate
-//     const pageNum = parseInt(page);
-//     const limitNum = parseInt(limit);
-
-//     // Validate page and limit
-//     if (isNaN(pageNum) || isNaN(limitNum) || pageNum < 1 || limitNum < 1) {
-//       return res.status(400).json({
-//         message: "Invalid pagination parameters",
-//         status: false,
-//       });
-//     }
-
-//     // Calculate skip value for pagination
-//     const skip = (pageNum - 1) * limitNum;
-
-//     // Get total count of comments
-//     const totalComments = await prisma.comment.count({
-//       where: { storyId },
-//     });
-
-//     // Get paginated comments
-//     const storyComments = await prisma.story.findFirstOrThrow({
-//       where: { id: storyId },
-//       select: {
-//         comments: {
-//           skip,
-//           take: limitNum,
-//           select: {
-//             content: true,
-//             createdAt: true,
-//             student: {
-//               select: {
-//                 id: true,
-//                 userName: true,
-//                 studentImage: true,
-//               },
-//             },
-//             parent: {
-//               select: {
-//                 id: true,
-//                 userName: true,
-//                 parentImage: true,
-//               },
-//             },
-//             therapist: {
-//               select: {
-//                 id: true,
-//                 userName: true,
-//                 therapistImage: true,
-//               },
-//             },
-//           },
-//           orderBy: {
-//             createdAt: "desc", // Most recent comments first
-//           },
-//         },
-//       },
-//     });
-
-//     // Calculate pagination metadata
-//     const totalPages = Math.ceil(totalComments / limitNum);
-//     const hasNextPage = pageNum < totalPages;
-//     const hasPrevPage = pageNum > 1;
-
-//     return res.status(200).json({
-//       data: storyComments.comments,
-//       pagination: {
-//         currentPage: pageNum,
-//         totalPages,
-//         totalComments,
-//         hasNextPage,
-//         hasPrevPage,
-//         limit: limitNum,
-//       },
-//       message: "Comments retrieved successfully",
-//       status: true,
-//     });
-//   } catch (error) {
-//     if (error.code === "P2025") {
-//       return res.status(404).json({
-//         message: "Story not found",
-//         status: false,
-//       });
-//     }
-
-//     return res.status(500).json({
-//       message: "Error while getting comments",
-//       error: error.message,
-//       status: false,
-//     });
-//   }
-// };
 const getStoryComments = async (req, res) => {
   try {
     const { storyId, page = 1, limit = 10 } = req.query;
@@ -1282,7 +1209,6 @@ const getTopThreeLikedStoryes = async (req, res) => {
     });
   }
 };
-
 const getSpecificStory = async (req, res) => {
   try {
     const { storyId } = req.params;
@@ -1392,6 +1318,158 @@ const getSpecificStory = async (req, res) => {
   }
 };
 
+const reportStory = async (req, res) => {
+  try {
+    const { storyId } = req.params;
+    const { reason } = req.body;
+    const user = req.user;
+
+    // Verify the story exists
+    const story = await prisma.story.findUnique({
+      where: { id: storyId },
+    });
+
+    if (!story) {
+      return res.status(404).json({
+        message: "Story not found",
+        status: false,
+      });
+    }
+    // Determine reporter type based on userType from the JWT middleware
+    const reportData = {
+      storyId,
+      reason,
+    };
+
+    // Add the appropriate reporter ID based on user type
+    if (user.userType === "student") {
+      reportData.studentReporterId = user.id;
+    } else if (user.userType === "parent") {
+      reportData.parentReporterId = user.id;
+    } else if (user.userType === "therapist") {
+      reportData.therapistReporterId = user.id;
+    } else {
+      return res.status(400).json({
+        message: "Invalid user type for reporting",
+        status: false,
+      });
+    }
+
+    // Create the report
+    const reportedStory = await prisma.report.create({
+      data: reportData,
+    });
+
+    return res.status(201).json({
+      message: "Story reported successfully",
+      status: true,
+      report: reportedStory,
+    });
+  } catch (error) {
+    console.error("Error reporting story:", error);
+    return res.status(500).json({
+      message: "Failed to report story",
+      status: false,
+      error: error.message,
+    });
+  }
+};
+
+const getReportedStories = async (req, res) => {
+  try {
+    const reportedStories = await prisma.report.findMany({
+      where: {
+        isNew: true,
+      },
+      select: {
+        id: true,
+        reason: true,
+        createdAt: true,
+        story: {
+          select: {
+            id: true,
+          },
+        },
+        studentReporter: {
+          select: {
+            userName: true,
+          },
+        },
+        parentReporter: {
+          select: {
+            fullName: true,
+          },
+        },
+        therapistReporter: {
+          select: {
+            userName: true,
+          },
+        },
+      },
+    });
+
+    return res.status(200).json({
+      data: reportedStories,
+      message: "Reported stories retrieved successfully",
+      status: true,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to get reported stories",
+      status: false,
+      error: error.message,
+    });
+  }
+};
+
+const getReportedStory = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const reportedStory = await prisma.story.findUnique({
+      where: {
+        id,
+      },
+      select: {
+        image: true,
+        title: true,
+        content: true,
+        audio: true,
+        audioDuration: true,
+        student: {
+          select: {
+            studentImage: true,
+            userName: true,
+          },
+        },
+        _count: {
+          select: {
+            reports: true,
+          },
+        },
+      },
+    });
+
+    if (reportedStory) {
+      return res.status(200).json({
+        data: reportedStory,
+        message: "Reported story retrieved successfully",
+        status: true,
+      });
+    } else {
+      return res.status(404).json({
+        message: "Reported story not found",
+        status: false,
+      });
+    }
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to get reported story",
+      status: false,
+      error: error.message,
+    });
+  }
+};
 export {
   createStory,
   getStories,
@@ -1403,4 +1481,7 @@ export {
   toggleStoryLike,
   getTopThreeLikedStoryes,
   getSpecificStory, // Export the new function
+  reportStory,
+  getReportedStories,
+  getReportedStory,
 };
