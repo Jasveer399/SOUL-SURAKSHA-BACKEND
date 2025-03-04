@@ -35,7 +35,6 @@ router.get(
 );
 router.get(
   "/getSpecificStory/:storyId",
-  verifyJWT(["student"]),
   getSpecificStory
 );
 router.post(

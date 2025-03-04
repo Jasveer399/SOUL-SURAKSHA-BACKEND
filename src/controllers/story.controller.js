@@ -1286,7 +1286,8 @@ const getTopThreeLikedStoryes = async (req, res) => {
 const getSpecificStory = async (req, res) => {
   try {
     const { storyId } = req.params;
-    const userId = req.user.id; // Assuming you want to ensure the user owns the story
+    // console.log(storyId);
+    const userId = req.user?.id; // Assuming you want to ensure the user owns the story
 
     // Fetch the story by ID, ensuring it belongs to the logged-in user
     const story = await prisma.story.findUnique({
