@@ -4,6 +4,7 @@ import {
   accessTokenGenerator,
   getGoogleOauthTokens,
   getGoogleUser,
+  isAllDigits,
 } from "../utils/Helper.js";
 import { createParent, editParent, loginParent } from "./parent.controller.js";
 import {
@@ -40,7 +41,7 @@ export const userTypeSchema = z.enum(["student", "parent", "therapist"], {
 
 // Schema for phone-based OTP requests
 export const otpRequestSchema = z.object({
-  phone: phoneNumberSchema,
+  contact: z.union([phoneNumberSchema, emailSchema]),
   userType: userTypeSchema,
 });
 
@@ -52,7 +53,7 @@ export const emailOtpRequestSchema = z.object({
 
 // Schema for phone-based OTP verification
 const verifyOtpSchema = z.object({
-  phone: phoneNumberSchema,
+  contact: z.union([phoneNumberSchema, emailSchema]),
   otp: z.string().length(4, "OTP must be 4 digits"),
   userType: userTypeSchema,
 });
@@ -757,6 +758,7 @@ const handleWebRedirect = (res, params) => {
 const createUserAndGetOtp = async (req, res) => {
   try {
     // Validate request body using Zod
+    console.log("req.body", req.body);
     const validationResult = otpRequestSchema.safeParse(req.body);
 
     if (!validationResult.success) {
@@ -772,35 +774,55 @@ const createUserAndGetOtp = async (req, res) => {
       });
     }
 
-    const { phone, userType } = validationResult.data;
+    const { contact, userType } = validationResult.data;
+    const isNumber = isAllDigits(contact);
 
-    // Check if phone number exists in all user types
+    // Determine the field to query (phone or email)
+    const queryField = isNumber ? "phone" : "email";
+
+    // Check if phone number or email exists in all user types
     const [studentCheck, parentCheck, therapistCheck] =
       await prisma.$transaction([
         prisma.student.findUnique({
-          where: { phone: phone },
-          select: { phone: true, email: true },
+          where: { [queryField]: contact },
+          select: { [queryField]: true },
         }),
         prisma.parent.findUnique({
-          where: { phone: phone },
-          select: { phone: true },
+          where: { [queryField]: contact },
+          select: { [queryField]: true },
         }),
         prisma.therapist.findUnique({
-          where: { phone: phone },
-          select: { phone: true },
+          where: { [queryField]: contact },
+          select: { [queryField]: true },
         }),
       ]);
 
-    // Check for existing phone number in other user types
+    // Check for existing phone number or email in other user types
     const existingUserTypes = [];
-    if (studentCheck) existingUserTypes.push("student");
-    if (parentCheck) existingUserTypes.push("parent");
-    if (therapistCheck) existingUserTypes.push("therapist");
 
-    // If phone exists in a different user type, return error
-    if (existingUserTypes.length > 0 && !existingUserTypes.includes(userType)) {
+    // Only add to existing user types if phone is not null and not empty
+    if (
+      studentCheck &&
+      studentCheck.phone &&
+      studentCheck.phone.trim() !== ""
+    ) {
+      existingUserTypes.push("student");
+    }
+    if (parentCheck && parentCheck.phone && parentCheck.phone.trim() !== "") {
+      existingUserTypes.push("parent");
+    }
+    if (
+      therapistCheck &&
+      therapistCheck.phone &&
+      therapistCheck.phone.trim() !== ""
+    ) {
+      existingUserTypes.push("therapist");
+    }
+
+    // If phone/email exists in a different user type with non-null phone, return error
+    if (existingUserTypes.length > 0 && existingUserTypes.includes(userType)) {
       return res.status(409).json({
-        message: `Phone number already registered as ${existingUserTypes.join(
+        message: `${queryField} already registered as ${existingUserTypes.join(
           ", "
         )}`,
         status: false,
@@ -811,6 +833,11 @@ const createUserAndGetOtp = async (req, res) => {
     // Generate 6-digit OTP
     const otp = Math.floor(1000 + Math.random() * 9000).toString();
 
+    if (!isNumber) {
+      // Send email OTP
+      await sendOTP(contact, otp);
+    }
+
     // Handle user creation/update based on user type
     let user;
     try {
@@ -818,16 +845,16 @@ const createUserAndGetOtp = async (req, res) => {
         case "student":
           user = studentCheck
             ? await prisma.student.update({
-                where: { phone: phone },
-                data: { otp },
+                where: { [queryField]: contact },
+                data: { otp, isOtpVerify: false },
               })
             : await prisma.student.create({
                 data: {
-                  phone: phone,
+                  [queryField]: contact,
                   otp,
                   fullName: `user_${Date.now()}`, // Temporary unique name
                   userName: `user_${Date.now()}`, // Temporary unique username
-                  email: `temp_${Date.now()}@temp.com`, // Temporary unique email
+                  email: isNumber ? `temp_${Date.now()}@temp.com` : contact, // Use provided email if available
                   password: "123", // Temporary password
                 },
               });
@@ -836,15 +863,15 @@ const createUserAndGetOtp = async (req, res) => {
         case "parent":
           user = parentCheck
             ? await prisma.parent.update({
-                where: { phone: phone },
-                data: { otp },
+                where: { [queryField]: contact },
+                data: { otp, isOtpVerify: false },
               })
             : await prisma.parent.create({
                 data: {
-                  phone: phone,
+                  [queryField]: contact,
                   otp,
                   fullName: `user_${Date.now()}`,
-                  email: `temp_${Date.now()}@temp.com`,
+                  email: isNumber ? `temp_${Date.now()}@temp.com` : contact,
                   password: "123",
                 },
               });
@@ -853,15 +880,15 @@ const createUserAndGetOtp = async (req, res) => {
         case "therapist":
           user = therapistCheck
             ? await prisma.therapist.update({
-                where: { phone: phone },
-                data: { otp },
+                where: { [queryField]: contact },
+                data: { otp, isOtpVerify: false },
               })
             : await prisma.therapist.create({
                 data: {
-                  phone: phone,
+                  [queryField]: contact,
                   otp,
                   userName: `user_${Date.now()}`,
-                  email: `temp_${Date.now()}@temp.com`,
+                  email: isNumber ? `temp_${Date.now()}@temp.com` : contact,
                   password: "123",
                   languageType: [],
                 },
@@ -921,6 +948,8 @@ const verifyOtp = async (req, res) => {
     // Validate request body
     const validationResult = verifyOtpSchema.safeParse(req.body);
 
+    console.log("validationResult", validationResult);
+
     if (!validationResult.success) {
       const errors = validationResult.error.errors.map((error) => ({
         field: error.path.join("."),
@@ -934,12 +963,17 @@ const verifyOtp = async (req, res) => {
       });
     }
 
-    const { otp, phone, userType } = validationResult.data;
+    const { otp, contact, userType } = validationResult.data;
+
+    const isNumber = isAllDigits(contact);
+
+    // Determine the field to query (phone or email)
+    const queryField = isNumber ? "phone" : "email";
 
     // Check if user exists and verify OTP
     if (userType === "student") {
       const student = await prisma.student.findUnique({
-        where: { phone: phone },
+        where: { [queryField]: contact },
       });
 
       if (!student) {
@@ -958,7 +992,7 @@ const verifyOtp = async (req, res) => {
 
       // Update patient record
       const updatedstudent = await prisma.student.update({
-        where: { phone: phone },
+        where: { [queryField]: contact },
         data: {
           otp: "",
           isOtpVerify: true,
@@ -975,7 +1009,7 @@ const verifyOtp = async (req, res) => {
     } else if (userType === "parent") {
       // Handle therapist authentication
       const parent = await prisma.parent.findUnique({
-        where: { phone: phone },
+        where: { [queryField]: contact },
       });
 
       if (!parent) {
@@ -994,7 +1028,9 @@ const verifyOtp = async (req, res) => {
 
       // Update patient record
       const updatedparent = await prisma.parent.update({
-        where: { phone: phone },
+        where: {
+          [queryField]: contact,
+        },
         data: {
           otp: "",
           isOtpVerify: true,
@@ -1011,7 +1047,7 @@ const verifyOtp = async (req, res) => {
     } else if (userType === "therapist") {
       // Handle therapist authentication
       const therapist = await prisma.therapist.findUnique({
-        where: { phone: phone },
+        where: { [queryField]: contact },
       });
 
       if (!therapist) {
@@ -1030,7 +1066,9 @@ const verifyOtp = async (req, res) => {
 
       // Update patient record
       const updatedtherapist = await prisma.therapist.update({
-        where: { phone: phone },
+        where: {
+          [queryField]: contact,
+        },
         data: {
           otp: "",
           isOtpVerify: true,
@@ -1054,6 +1092,7 @@ const verifyOtp = async (req, res) => {
         status: false,
       });
     }
+    console.log("error", error);
     return res.status(500).json({
       message: "Error while authenticating user",
       error: error.message,

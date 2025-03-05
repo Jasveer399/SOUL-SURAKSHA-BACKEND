@@ -91,6 +91,7 @@ const createParent = async (req, res) => {
     const { fullName, phone, email, password, parentImage, dob, gender } =
       createParentSchema.parse(req.body);
 
+    // Check for email conflicts in other user types
     const [studentCheck, therapistCheck] = await prisma.$transaction([
       prisma.student.findUnique({
         where: { email: email },
@@ -102,6 +103,7 @@ const createParent = async (req, res) => {
       }),
     ]);
 
+    // Conflict checks
     if (studentCheck) {
       return res.status(409).json({
         message: "Email already registered as a Student",
@@ -114,63 +116,115 @@ const createParent = async (req, res) => {
         status: false,
       });
     }
-    // Check if email already exists
-    const emailExists = await prisma.parent.findUnique({
-      where: { email },
-    });
-
-    if (emailExists) {
-      return res.status(409).json({
-        message: "Email already exists",
-        status: false,
-      });
-    }
 
     // Hash password
     const hashedPassword = await encryptPassword(password);
 
-    // Create parent
-    const createdParent = await prisma.parent.update({
+    // Find existing parent by email or phone
+    const existingParent = await prisma.parent.findFirst({
       where: {
-        phone,
-      },
-      data: {
-        fullName,
-        phone,
-        email,
-        password: hashedPassword,
-        parentImage,
-        dob,
-        gender,
-      },
-      select: {
-        id: true,
-        fullName: true,
-        email: true,
-        parentImage: true,
-        createdAt: true,
-        dob: true,
-        gender: true,
+        OR: [{ email: email }, { phone: phone }],
       },
     });
 
-    const { accessToken } = await accessTokenGenerator(
-      createdParent.id,
-      "parent"
-    );
+    // If no existing parent, create new
+    if (!existingParent) {
+      const createdParent = await prisma.parent.create({
+        data: {
+          fullName,
+          phone,
+          email,
+          password: hashedPassword,
+          parentImage,
+          dob,
+          gender,
+        },
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          parentImage: true,
+          createdAt: true,
+          dob: true,
+          gender: true,
+        },
+      });
 
-    return res.status(201).json({
-      data: createdParent,
-      userType: "parent",
-      accessToken,
-      message: "Parent account created successfully",
-      status: true,
-    });
+      const { accessToken } = await accessTokenGenerator(
+        createdParent.id,
+        "parent"
+      );
+
+      return res.status(201).json({
+        data: createdParent,
+        userType: "parent",
+        accessToken,
+        message: "Parent account created successfully",
+        status: true,
+      });
+    }
+
+    const queryKey = existingParent.email
+      ? "email"
+      : existingParent.phone
+      ? "phone"
+      : null;
+    const queryValue = queryKey ? existingParent[queryKey] : null;
+    // If existing parent found, update using email (unique identifier)
+    if (queryKey) {
+      const updatedParent = await prisma.parent.update({
+        where: { [queryKey]: queryValue },
+        data: {
+          fullName,
+          phone,
+          password: hashedPassword,
+          parentImage,
+          dob,
+          gender,
+        },
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          parentImage: true,
+          createdAt: true,
+          dob: true,
+          gender: true,
+        },
+      });
+
+      const { accessToken } = await accessTokenGenerator(
+        updatedParent.id,
+        "parent"
+      );
+
+      return res.status(200).json({
+        data: updatedParent,
+        userType: "parent",
+        accessToken,
+        message: "Parent account updated successfully",
+        status: true,
+      });
+    }
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
         message: "Validation Error",
         errors: error.errors.map((e) => e.message),
+        status: false,
+      });
+    }
+
+    // Handle unique constraint errors
+    if (error.code === "P2002") {
+      const field = error.meta?.target?.[0];
+      return res.status(409).json({
+        message:
+          field === "email"
+            ? "Email already exists"
+            : field === "phone"
+            ? "Phone number already exists"
+            : "Account creation failed",
         status: false,
       });
     }
@@ -191,8 +245,6 @@ const editParent = async (req, res) => {
       EditParentSchema.parse(req.body);
 
     const parentId = req.user.id;
-
-    console.log("parentId: >>", parentId);
 
     const updatedParent = await prisma.parent.update({
       where: { id: parentId },

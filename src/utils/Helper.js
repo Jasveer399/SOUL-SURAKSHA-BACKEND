@@ -213,10 +213,12 @@ const getGoogleUser = async ({ id_token, access_token }) => {
   }
 };
 
+const isAllDigits = (str) => /^\d+$/.test(str);
 export {
   generateBlogContext,
   accessTokenGenerator,
   extractImageUrls,
   getGoogleOauthTokens,
   getGoogleUser,
+  isAllDigits,
 };

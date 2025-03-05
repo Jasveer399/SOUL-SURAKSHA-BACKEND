@@ -80,7 +80,9 @@ const StudentStoriesPaginationSchema = z.object({
 
 // Nodemailer transporter configuration
 const transporter = nodemailer.createTransport({
-  service: "gmail", // e.g., 'gmail'
+  host: "smtp.gmail.com",
+  port: 465,
+  secure: true,
   auth: {
     user: process.env.EMAIL_USER, // Your email address
     pass: process.env.EMAIL_PASS, // Your email password or app password
@@ -141,60 +143,98 @@ const createStudent = async (req, res) => {
         status: false,
       });
     }
-    // Check if email already exists
-    const emailExists = await prisma.student.findUnique({
-      where: { email },
-    });
-
-    if (emailExists) {
-      return res.status(409).json({
-        message: "Email already exists",
-        status: false,
-      });
-    }
-
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user
-    const createdStudent = await prisma.student.update({
+    const existingStudent = await prisma.student.findFirst({
       where: {
-        phone,
-      },
-      data: {
-        fullName,
-        userName,
-        phone,
-        email,
-        studentImage: profileImage,
-        password: hashedPassword,
-        gender,
-        trustPhoneNo,
-        dob,
-      },
-      select: {
-        id: true,
-        fullName: true,
-        userName: true,
-        email: true,
-        dob: true,
-        createdAt: true,
-        gender: true,
-        trustPhoneNo: true,
+        OR: [{ email: email }, { phone: phone }],
       },
     });
-    const { accessToken } = await accessTokenGenerator(
-      createStudent.id,
-      "student"
-    );
+    // Create user
 
-    return res.status(201).json({
-      data: createdStudent,
-      userType: "student",
-      accessToken,
-      message: "User created successfully",
-      status: true,
-    });
+    if (!existingStudent) {
+      const createdStudent = await prisma.student.create({
+        data: {
+          fullName,
+          userName,
+          phone,
+          email,
+          studentImage: profileImage,
+          password: hashedPassword,
+          gender,
+          trustPhoneNo,
+          dob,
+        },
+        select: {
+          id: true,
+          fullName: true,
+          userName: true,
+          email: true,
+          dob: true,
+          createdAt: true,
+          gender: true,
+          trustPhoneNo: true,
+        },
+      });
+      const { accessToken } = await accessTokenGenerator(
+        createStudent.id,
+        "student"
+      );
+
+      return res.status(201).json({
+        data: createdStudent,
+        userType: "student",
+        accessToken,
+        message: "User created successfully",
+        status: true,
+      });
+    }
+    const queryKey = existingStudent.email
+      ? "email"
+      : existingParent.phone
+      ? "phone"
+      : null;
+    const queryValue = queryKey ? existingStudent[queryKey] : null;
+    if (queryKey) {
+      const updatedStudent = await prisma.student.update({
+        where: { [queryKey]: queryValue },
+        data: {
+          fullName,
+          userName,
+          phone,
+          email,
+          studentImage: profileImage,
+          password: hashedPassword,
+          gender,
+          trustPhoneNo,
+          dob,
+        },
+        select: {
+          id: true,
+          fullName: true,
+          userName: true,
+          email: true,
+          dob: true,
+          createdAt: true,
+          gender: true,
+          trustPhoneNo: true,
+        },
+      });
+
+      const { accessToken } = await accessTokenGenerator(
+        updatedStudent.id,
+        "student"
+      );
+
+      return res.status(200).json({
+        data: updatedStudent,
+        userType: "student",
+        accessToken,
+        message: "Student account updated successfully",
+        status: true,
+      });
+    }
   } catch (error) {
     // Handle Zod validation errors
     if (error instanceof z.ZodError) {
