@@ -1,8 +1,22 @@
 import { prisma } from "../db/prismaClientConfig.js";
 import { z } from "zod";
 
-// Enhanced validation schema
-const QuizSchema = z.object({
+// Enhanced validation schema for Quiz
+const CreateQuizSchema = z.object({
+  title: z
+    .string()
+    .min(5, { message: "Title must be at least 5 characters long" })
+    .max(200, { message: "Title cannot exceed 200 characters" }),
+  description: z
+    .string()
+    .min(10, { message: "Description must be at least 10 characters long" })
+    .max(1000, { message: "Description cannot exceed 1000 characters" }),
+  imageUrl: z.string().url({ message: "Invalid URL format" }).optional(),
+  totalQuestions: z.number().int().min(1).optional(), // Total questions can be updated later
+});
+
+// Enhanced validation schema for Quiz Questions
+const CreateQuizQuestionSchema = z.object({
   question: z
     .string()
     .min(5, { message: "Question must be at least 5 characters long" })
@@ -24,6 +38,7 @@ const QuizSchema = z.object({
     .min(1, { message: "Option 4 cannot be empty" })
     .max(200, { message: "Option 4 cannot exceed 200 characters" }),
   answer: z.string().min(1, { message: "Answer cannot be empty" }),
+  id: z.string().uuid().optional(), // Include id for updating existing questions
 });
 
 const QuizAttemptSchema = z.object({
@@ -34,7 +49,7 @@ const QuizAttemptSchema = z.object({
 // Enhanced quiz controller
 const createQuiz = async (req, res) => {
   try {
-    const validated = QuizSchema.parse(req.body);
+    const validated = CreateQuizSchema.parse(req.body);
 
     const newQuiz = await prisma.quiz.create({
       data: validated,
@@ -61,6 +76,61 @@ const createQuiz = async (req, res) => {
   }
 };
 
+const addQuizQuestion = async (req, res) => {
+  try {
+    const { quizId } = req.params;
+    const validated = CreateQuizQuestionSchema.parse(req.body);
+
+    // Check if quiz exists
+    const quiz = await prisma.quiz.findUnique({
+      where: { id: quizId },
+    });
+
+    if (!quiz) {
+      return res.status(404).json({
+        message: "Quiz not found",
+        status: false,
+      });
+    }
+
+    const newQuizQuestion = await prisma.quizQuestion.create({
+      data: {
+        ...validated,
+        quizId: quizId,
+      },
+    });
+
+    // Optionally, update the totalQuestions count in the quiz
+    await prisma.quiz.update({
+      where: { id: quizId },
+      data: {
+        totalQuestions: {
+          increment: 1,
+        },
+      },
+    });
+
+    return res.status(201).json({
+      data: newQuizQuestion,
+      message: "Quiz question added successfully",
+      status: true,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        message: "Validation error",
+        errors: error.errors,
+        status: false,
+      });
+    }
+    console.error(error);
+    return res.status(500).json({
+      message: "Something went wrong while adding quiz question",
+      status: false,
+    });
+  }
+};
+
 const getQuizzes = async (req, res) => {
   try {
     const { page = 1, limit = 10, activequiz } = req.query;
@@ -81,6 +151,9 @@ const getQuizzes = async (req, res) => {
         skip: skip,
         take: pageSize,
         orderBy: { createdAt: "desc" },
+        include: {
+          questions: true,
+        },
       }),
       prisma.quiz.count({ where }),
     ]);
@@ -113,21 +186,59 @@ const getQuizzes = async (req, res) => {
 const editQuiz = async (req, res) => {
   try {
     const { id } = req.params;
-    const validated = QuizSchema.parse(req.body);
+    const validatedQuiz = CreateQuizSchema.parse(req.body);
 
-    const updatedquiz = await prisma.quiz.update({
+    // Update quiz details
+    const updatedQuiz = await prisma.quiz.update({
       where: {
         id,
       },
-      data: validated,
+      data: validatedQuiz,
     });
 
+    // Handle question updates (assuming questions are sent in the request body)
+    if (req.body.questions && Array.isArray(req.body.questions)) {
+      for (const questionData of req.body.questions) {
+        const validatedQuestion = CreateQuizQuestionSchema.parse(questionData);
+
+        if (validatedQuestion.id) {
+          // Update existing question
+          await prisma.quizQuestion.update({
+            where: { id: validatedQuestion.id },
+            data: {
+              question: validatedQuestion.question,
+              option1: validatedQuestion.option1,
+              option2: validatedQuestion.option2,
+              option3: validatedQuestion.option3,
+              option4: validatedQuestion.option4,
+              answer: validatedQuestion.answer,
+            },
+          });
+        } else {
+          // Create new question
+          await prisma.quizQuestion.create({
+            data: {
+              ...validatedQuestion,
+              quizId: id,
+            },
+          });
+        }
+      }
+    }
+
     return res.status(200).json({
-      data: updatedquiz,
-      message: "quiz updated successfully",
+      data: updatedQuiz,
+      message: "Quiz updated successfully",
       status: true,
     });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        message: "Validation error",
+        errors: error.errors,
+        status: false,
+      });
+    }
     console.error(error);
     return res.status(500).json({
       message: "Something went wrong",
@@ -144,6 +255,9 @@ const submitQuizAttempt = async (req, res) => {
     // Get the quiz to check the correct answer
     const quiz = await prisma.quiz.findUnique({
       where: { id: quizId },
+      include: {
+        questions: true, // Include questions to find the correct answer
+      },
     });
 
     if (!quiz) {
@@ -153,17 +267,28 @@ const submitQuizAttempt = async (req, res) => {
       });
     }
 
+    // Find the question being answered
+    const question = quiz.questions.find((q) => q.id === questionId);
+
+    if (!question) {
+      return res.status(404).json({
+        message: "Question not found in the quiz",
+        status: false,
+      });
+    }
+
     // Create the attempt
     await prisma.quizAttempt.create({
       data: {
         studentId,
         quizId,
+        questionId: question.id,
         answer,
-        isCorrect: answer === quiz.answer,
+        isCorrect: answer === question.answer,
       },
     });
 
-    if (quiz.answer === answer) {
+    if (question.answer === answer) {
       prisma.student.update({
         where: {
           id: studentId,
@@ -332,6 +457,50 @@ const getUnattemptedQuizzes = async (req, res) => {
     });
   }
 };
+
+const deleteQuiz = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if quiz exists
+    const quiz = await prisma.quiz.findUnique({
+      where: { id: id },
+    });
+
+    if (!quiz) {
+      return res.status(404).json({
+        message: "Quiz not found",
+        status: false,
+      });
+    }
+
+    // Delete related QuizQuestion records
+    await prisma.quizQuestion.deleteMany({
+      where: {
+        quizId: id,
+      },
+    });
+
+    // Delete the quiz
+    await prisma.quiz.delete({
+      where: {
+        id,
+      },
+    });
+
+    return res.status(200).json({
+      message: "Quiz deleted successfully",
+      status: true,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      message: "Something went wrong while deleting the quiz",
+      status: false,
+    });
+  }
+};
+
 export {
   createQuiz,
   getQuizzes,
@@ -340,4 +509,6 @@ export {
   getStudentQuizResults,
   toogleisActive,
   getUnattemptedQuizzes,
+  addQuizQuestion,
+  deleteQuiz,
 };

@@ -338,7 +338,7 @@ model Review {
   review    String
   rating    Int
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now())
 
   // Make these optional and mutually exclusive
   studentId   String?
@@ -351,6 +351,21 @@ model Review {
 }
 
 model Quiz {
+  id             String   @id @default(uuid())
+  title          String
+  description    String
+  imageUrl       String?
+  totalQuestions Int?     @default(0)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  questions QuizQuestion[]
+  attempts  QuizAttempt[]
+}
+
+model QuizQuestion {
   id        String   @id @default(uuid())
   question  String
   option1   String
@@ -363,6 +378,8 @@ model Quiz {
   updatedAt DateTime @updatedAt
 
   // Relations
+  quizId   String
+  quiz     Quiz          @relation(fields: [quizId], references: [id], onDelete: Cascade)
   attempts QuizAttempt[]
 }
 
@@ -375,9 +392,12 @@ model QuizAttempt {
   attemptedAt DateTime @default(now())
 
   // Relations
-  student Student @relation(fields: [studentId], references: [id])
-  quiz    Quiz    @relation(fields: [quizId], references: [id])
+  student    Student       @relation(fields: [studentId], references: [id])
+  quiz       Quiz          @relation(fields: [quizId], references: [id])
+  questionId String?
+  question   QuizQuestion? @relation(fields: [questionId], references: [id])
 
   @@index([studentId])
   @@index([quizId])
+  @@index([questionId])
 }
