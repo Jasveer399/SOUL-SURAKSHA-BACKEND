@@ -102,85 +102,209 @@ const createTherapist = async (req, res) => {
       licenseNO,
       languageType,
       qualifications,
+      therapistImage,
     } = createdTherapistSchema.parse(req.body);
 
+    // Check if email or phone already exists in student or parent models
     const [studentCheck, parentCheck] = await prisma.$transaction([
-      prisma.student.findUnique({
-        where: { email: email },
-        select: { phone: true },
+      prisma.student.findFirst({
+        where: { OR: [{ email: email }, { phone: phone }] },
+        select: { id: true, email: true, phone: true },
       }),
-      prisma.parent.findUnique({
-        where: { email: email },
-        select: { phone: true },
+      prisma.parent.findFirst({
+        where: { OR: [{ email: email }, { phone: phone }] },
+        select: { id: true, email: true, phone: true },
       }),
     ]);
+
+    // Handle conflicts with student accounts
     if (studentCheck) {
       return res.status(409).json({
-        message: "Email already registered as a Student",
+        message: `${
+          studentCheck.email === email ? "Email" : "Phone"
+        } already registered as a student`,
         status: false,
       });
     }
+
+    // Handle conflicts with parent accounts
     if (parentCheck) {
       return res.status(409).json({
-        message: "Email already registered as a parent",
-        status: false,
-      });
-    }
-    // Check if email already exists
-    const emailExists = await prisma.therapist.findUnique({
-      where: { email },
-    });
-
-    if (emailExists) {
-      return res.status(409).json({
-        message: "Email already exists",
+        message: `${
+          parentCheck.email === email ? "Email" : "Phone"
+        } already registered as a parent`,
         status: false,
       });
     }
 
-    const hashedPassword = await encryptPassword(password);
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user
-    const createdTherapist = await prisma.therapist.create({
-      data: {
-        userName,
-        email,
-        password: hashedPassword,
-        dob,
-        gender,
-        specialization,
-        experience: parseFloat(experience),
-        licenseNO,
-        phone,
-        languageType,
-        qualifications,
-      },
-      select: {
-        id: true,
-        userName: true,
-        email: true,
-        createdAt: true,
-        qualifications: true,
-        languageType: true,
-        dob: true,
-        gender: true,
-        specialization: true,
-        experience: true,
-        licenseNO: true,
-        phone: true,
+    // Check if the user was initially created with phone or email
+    const isSignupWithPhone = email.includes("@temp.com");
+
+    // Find existing therapist by email OR phone
+    const existingTherapist = await prisma.therapist.findFirst({
+      where: {
+        OR: [{ email: email }, { phone: phone }],
       },
     });
-    const { accessToken } = await accessTokenGenerator(
-      createdTherapist.id,
-      "therapist"
-    );
-    return res.status(201).json({
-      data: createdTherapist,
-      userType: "therapist",
-      accessToken,
-      message: "Therapist account created successfully",
-      status: true,
-    });
+
+    // If no existing therapist, create a new one
+    if (!existingTherapist) {
+      try {
+        const createdTherapist = await prisma.therapist.create({
+          data: {
+            userName,
+            phone,
+            email,
+            password: hashedPassword,
+            therapistImage,
+            dob,
+            gender,
+            specialization,
+            experience: parseFloat(experience),
+            licenseNO,
+            languageType,
+            qualifications,
+            isOtpVerify: true, // Since they've already verified OTP in the previous step
+          },
+          select: {
+            id: true,
+            userName: true,
+            email: true,
+            therapistImage: true,
+            dob: true,
+            createdAt: true,
+            gender: true,
+            specialization: true,
+            experience: true,
+            licenseNO: true,
+            phone: true,
+            languageType: true,
+            qualifications: true,
+          },
+        });
+
+        const { accessToken } = await accessTokenGenerator(
+          createdTherapist.id,
+          "therapist"
+        );
+
+        return res.status(201).json({
+          data: createdTherapist,
+          userType: "therapist",
+          accessToken,
+          message: "Therapist account created successfully",
+          status: true,
+        });
+      } catch (createError) {
+        // Handle unique constraint violations during creation
+        if (createError.code === "P2002") {
+          const field = createError.meta.target[0];
+          return res.status(409).json({
+            message: `${field} already exists in another therapist account`,
+            status: false,
+          });
+        }
+        throw createError;
+      }
+    }
+
+    // Special handling for updating existing accounts based on signup method
+    if (existingTherapist.email) {
+      // For phone-based signups: Allow updating from temp email to real email
+      // Check if the new email exists in another account with a non-null phone
+      if (!existingTherapist.email.includes("@temp.com")) {
+        const emailExists = await prisma.therapist.findUnique({
+          where: { email: email },
+          select: { phone: true },
+        });
+
+        if (emailExists && emailExists.phone) {
+          return res.status(409).json({
+            message: "Email already registered with another therapist account",
+            status: false,
+          });
+        }
+      }
+    }
+
+    // Check if we're trying to update to a phone that already exists
+    if (existingTherapist.phone) {
+      const phoneExists = await prisma.therapist.findUnique({
+        where: { phone: phone },
+        select: { id: true, email: true },
+      });
+
+      if (phoneExists && !phoneExists.email.includes("@temp.com")) {
+        return res.status(409).json({
+          message:
+            "Phone number already registered with another therapist account",
+          status: false,
+        });
+      }
+    }
+
+    try {
+      // Update the existing therapist by ID (safest approach)
+      const updatedTherapist = await prisma.therapist.update({
+        where: { id: existingTherapist.id },
+        data: {
+          userName,
+          phone,
+          email,
+          therapistImage,
+          password: hashedPassword,
+          gender,
+          dob,
+          specialization,
+          experience: parseFloat(experience),
+          licenseNO,
+          languageType,
+          qualifications,
+          isOtpVerify: true, // Ensure OTP verification flag is set
+        },
+        select: {
+          id: true,
+          userName: true,
+          email: true,
+          therapistImage: true,
+          dob: true,
+          createdAt: true,
+          gender: true,
+          specialization: true,
+          experience: true,
+          licenseNO: true,
+          phone: true,
+          languageType: true,
+          qualifications: true,
+        },
+      });
+
+      const { accessToken } = await accessTokenGenerator(
+        updatedTherapist.id,
+        "therapist"
+      );
+
+      return res.status(200).json({
+        data: updatedTherapist,
+        userType: "therapist",
+        accessToken,
+        message: "Therapist account updated successfully",
+        status: true,
+      });
+    } catch (updateError) {
+      // Handle unique constraint violations during update
+      if (updateError.code === "P2002") {
+        const field = updateError.meta.target[0];
+        return res.status(409).json({
+          message: `${field} already exists in another therapist account`,
+          status: false,
+        });
+      }
+      throw updateError;
+    }
   } catch (error) {
     // Handle Zod validation errors
     if (error instanceof z.ZodError) {

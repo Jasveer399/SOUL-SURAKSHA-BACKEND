@@ -779,52 +779,56 @@ const createUserAndGetOtp = async (req, res) => {
 
     // Determine the field to query (phone or email)
     const queryField = isNumber ? "phone" : "email";
+    console.log("queryField", queryField);
 
     // Check if phone number or email exists in all user types
     const [studentCheck, parentCheck, therapistCheck] =
       await prisma.$transaction([
         prisma.student.findUnique({
           where: { [queryField]: contact },
-          select: { [queryField]: true },
         }),
         prisma.parent.findUnique({
           where: { [queryField]: contact },
-          select: { [queryField]: true },
         }),
         prisma.therapist.findUnique({
           where: { [queryField]: contact },
-          select: { [queryField]: true },
         }),
       ]);
 
-    // Check for existing phone number or email in other user types
+    console.log("studentCheck", studentCheck);
+
+    // Check for existing accounts in ANY user type (not just the requested type)
     const existingUserTypes = [];
 
-    // Only add to existing user types if phone is not null and not empty
-    if (
-      studentCheck &&
-      studentCheck.phone &&
-      studentCheck.phone.trim() !== ""
-    ) {
+    // Add user types regardless of whether phone is empty or not
+    if (studentCheck) {
       existingUserTypes.push("student");
     }
-    if (parentCheck && parentCheck.phone && parentCheck.phone.trim() !== "") {
+    if (parentCheck) {
       existingUserTypes.push("parent");
     }
-    if (
-      therapistCheck &&
-      therapistCheck.phone &&
-      therapistCheck.phone.trim() !== ""
-    ) {
+    if (therapistCheck) {
       existingUserTypes.push("therapist");
     }
 
-    // If phone/email exists in a different user type with non-null phone, return error
-    if (existingUserTypes.length > 0 && existingUserTypes.includes(userType)) {
+    console.log("existingUserTypes", existingUserTypes);
+
+    // If contact exists in any user type (including the requested type), return error
+    if (existingUserTypes.length > 0) {
+      // If trying to register with the same user type as an existing account
+      if (existingUserTypes.includes(userType)) {
+        return res.status(409).json({
+          message: `This ${queryField} is already registered as a ${userType}`,
+          status: false,
+          errorType: "ACCOUNT_EXISTS",
+        });
+      }
+
+      // If trying to register with a different user type
       return res.status(409).json({
-        message: `${queryField} already registered as ${existingUserTypes.join(
+        message: `This ${queryField} is already registered as ${existingUserTypes.join(
           ", "
-        )}`,
+        )}. Please use a different ${queryField}.`,
         status: false,
         errorType: "ACCOUNT_TYPE_MISMATCH",
       });
@@ -942,7 +946,6 @@ const createUserAndGetOtp = async (req, res) => {
     });
   }
 };
-
 const verifyOtp = async (req, res) => {
   try {
     // Validate request body

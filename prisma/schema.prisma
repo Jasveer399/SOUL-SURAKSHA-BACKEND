@@ -24,91 +24,91 @@ model Admin {
 }
 
 model Student {
-  id           String   @id @default(uuid())
-  fullName     String
-  userName     String   @unique
-  phone        String?  @unique 
-  bio          String?
-  dob          String?
-  gender       String?
-  email        String   @unique
-  password     String
-  studentImage String?
-  age          Int?
-  trustPhoneNo String?
-  otp          String?
-  isOtpVerify  Boolean  @default(false)
-  isMailOtpVerify Boolean @default(false)
-  quizScore    Int      @default(0)
-  createdAt    DateTime @default(now())
-  
+  id              String   @id @default(uuid())
+  fullName        String
+  userName        String   @unique
+  phone           String?  @unique
+  bio             String?
+  dob             String?
+  gender          String?
+  email           String   @unique
+  password        String
+  studentImage    String?
+  age             Int?
+  trustPhoneNo    String?
+  otp             String?
+  isOtpVerify     Boolean  @default(false)
+  isMailOtpVerify Boolean  @default(false)
+  quizScore       Int      @default(0)
+  createdAt       DateTime @default(now())
+
   // Relations
-  stories      Story[]
-  comments     Comment[]
-  likes        Like[]
-  Conversation Conversation[]
-  Review       Review[]
-  quizAttempts QuizAttempt[]
-  viewBlog ViewBlog[]
-  reportsSubmitted Report[] @relation("StudentReporter")
+  stories          Story[]
+  comments         Comment[]
+  likes            Like[]
+  Conversation     Conversation[]
+  Review           Review[]
+  quizAttempts     QuizAttempt[]
+  viewBlog         ViewBlog[]
+  reportsSubmitted Report[]       @relation("StudentReporter")
 
   @@index([email])
 }
 
-
 model Parent {
-  id          String   @id @default(uuid())
-  fullName    String
-  phone       String?  @unique
-  gender      String?
-  email       String   @unique
-  password    String
-  parentImage String?
-  dob         String? @default("")
-  otp         String?
-  isOtpVerify Boolean  @default(false)
-  isMailOtpVerify Boolean @default(false)
-  createdAt   DateTime @default(now())
+  id              String   @id @default(uuid())
+  fullName        String
+  phone           String?  @unique
+  gender          String?
+  email           String   @unique
+  password        String
+  parentImage     String?
+  dob             String?  @default("")
+  otp             String?
+  isOtpVerify     Boolean  @default(false)
+  isMailOtpVerify Boolean  @default(false)
+  createdAt       DateTime @default(now())
 
   // Relations
-  comments       Comment[]
-  likes          Like[]
-  DonationRecord DonationRecord[]
-  viewBlog ViewBlog[]
+  comments         Comment[]
+  likes            Like[]
+  DonationRecord   DonationRecord[]
+  viewBlog         ViewBlog[]
   reportsSubmitted Report[]
 
   @@index([email])
 }
 
 model Therapist {
-  id             String           @id @default(uuid())
-  userName       String
-  phone          String?          @unique
-  email          String           @unique
-  password       String
-  gender         String?
-  dob            String? @default("")
-  otp            String?
-  isOtpVerify    Boolean  @default(false)
-  isMailOtpVerify Boolean @default(false)
-  recoveryEmail  String?
-  licenseNO      String?
-  therapistImage String?
-  languageType   String[]
-  qualifications String?
-  specialization String?
-  experience     Float?
-  bio            String?
-  verified       Boolean          @default(false)
-  ratings        Float?           @default(0)
-  createdAt      DateTime         @default(now())
-  Conversation   Conversation[]
-  Review         Review[]
-  comments       Comment[]
-  likes          Like[]
-  DonationRecord DonationRecord[]
-  viewBlog ViewBlog[]
-  reportsSubmitted Report[]
+  id                         String           @id @default(uuid())
+  userName                   String
+  phone                      String?          @unique
+  email                      String           @unique
+  password                   String
+  gender                     String?
+  dob                        String?          @default("")
+  otp                        String?
+  isTherapistVerifiedByAdmin Boolean          @default(false)
+  isOtpVerify                Boolean          @default(false)
+  isMailOtpVerify            Boolean          @default(false)
+  recoveryEmail              String?
+  licenseNO                  String?
+  therapistImage             String?
+  languageType               String[]
+  qualifications             String?
+  specialization             String?
+  experience                 Float?
+  bio                        String?
+  verified                   Boolean          @default(false)
+  ratings                    Float?           @default(0)
+  createdAt                  DateTime         @default(now())
+  Conversation               Conversation[]
+  Review                     Review[]
+  comments                   Comment[]
+  likes                      Like[]
+  DonationRecord             DonationRecord[]
+  viewBlog                   ViewBlog[]
+  reportsSubmitted           Report[]
 }
 
 model Donation {
@@ -148,16 +148,16 @@ model DonationRecord {
 }
 
 model Story {
-  id            String        @id @default(uuid())
+  id            String      @id @default(uuid())
   title         String? // You might want to add this
   content       String
-  image         String @default("")
-  audio         String @default("")
+  image         String      @default("")
+  audio         String      @default("")
   audioDuration Float?
-  createdAt     DateTime  @default(now())
+  createdAt     DateTime    @default(now())
   studentId     String
-  isComplete    Boolean  @default(true)
-  student       Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  isComplete    Boolean     @default(true)
+  student       Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
   chunks        StoryChunk?
   comments      Comment[]
   likes         Like[]
@@ -179,23 +179,23 @@ model StoryChunk {
 }
 
 model Report {
-  id          String   @id @default(uuid())
-  reason      String
-  isNew       Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(uuid())
+  reason    String
+  isNew     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Story being reported
-  storyId     String
-  story       Story    @relation(fields: [storyId], references: [id])
+  storyId String
+  story   Story  @relation(fields: [storyId], references: [id])
 
   // Reporter information (can be Student, Parent, or Therapist)
   studentReporterId String?
-  studentReporter   Student?   @relation("StudentReporter", fields: [studentReporterId], references: [id])
-  
-  parentReporterId  String?
-  parentReporter    Parent?    @relation(fields: [parentReporterId], references: [id])
-  
+  studentReporter   Student? @relation("StudentReporter", fields: [studentReporterId], references: [id])
+
+  parentReporterId String?
+  parentReporter   Parent? @relation(fields: [parentReporterId], references: [id])
+
   therapistReporterId String?
   therapistReporter   Therapist? @relation(fields: [therapistReporterId], references: [id])
 
@@ -212,11 +212,11 @@ model Comment {
 
   // Make these optional and mutually exclusive
   studentId   String?
-  student     Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student     Student?   @relation(fields: [studentId], references: [id], onDelete: Cascade)
   therapistId String?
   therapist   Therapist? @relation(fields: [therapistId], references: [id], onDelete: Cascade)
   parentId    String?
-  parent      Parent?  @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  parent      Parent?    @relation(fields: [parentId], references: [id], onDelete: Cascade)
 
   storyId String
   story   Story  @relation(fields: [storyId], references: [id], onDelete: Cascade)
@@ -232,13 +232,13 @@ model Like {
 
   // Make these optional and mutually exclusive
   studentId   String?
-  student     Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student     Student?   @relation(fields: [studentId], references: [id], onDelete: Cascade)
   therapistId String?
   therapist   Therapist? @relation(fields: [therapistId], references: [id], onDelete: Cascade)
   parentId    String?
-  parent      Parent?  @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  parent      Parent?    @relation(fields: [parentId], references: [id], onDelete: Cascade)
   storyId     String
-  story       Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  story       Story      @relation(fields: [storyId], references: [id], onDelete: Cascade)
 
   // Prevent multiple likes from same user on same story
   @@unique([studentId, storyId])
@@ -259,24 +259,24 @@ model Blog {
   image        String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-  
+
   // Relations
   viewBlog ViewBlog[]
 }
 
-
 model ViewBlog {
-  id        String   @id @default(uuid())
-  blogId    String
-  blog      Blog     @relation(fields: [blogId], references: [id])
-  studentId String?
-  student   Student?  @relation(fields: [studentId], references: [id])
-  parentId  String?
-  parent    Parent?  @relation(fields: [parentId], references: [id])
+  id          String     @id @default(uuid())
+  blogId      String
+  blog        Blog       @relation(fields: [blogId], references: [id])
+  studentId   String?
+  student     Student?   @relation(fields: [studentId], references: [id])
+  parentId    String?
+  parent      Parent?    @relation(fields: [parentId], references: [id])
   therapistId String?
-  therapist   Therapist?  @relation(fields: [therapistId], references: [id])
-  createdAt DateTime @default(now())
+  therapist   Therapist? @relation(fields: [therapistId], references: [id])
+  createdAt   DateTime   @default(now())
 }
+
 enum ConversationStatus {
   Accepted
   Pending
@@ -350,34 +350,33 @@ model Review {
   @@index([therapistId])
 }
 
-
 model Quiz {
-  id        String       @id @default(uuid())
+  id        String   @id @default(uuid())
   question  String
   option1   String
   option2   String
   option3   String
   option4   String
   answer    String
-  isActive  Boolean     @default(true)
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
-  
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relations
-  attempts  QuizAttempt[]
+  attempts QuizAttempt[]
 }
 
 model QuizAttempt {
-  id        String   @id @default(uuid())
-  studentId String
-  quizId    String
-  answer    String
-  isCorrect Boolean
+  id          String   @id @default(uuid())
+  studentId   String
+  quizId      String
+  answer      String
+  isCorrect   Boolean
   attemptedAt DateTime @default(now())
-  
+
   // Relations
-  student   Student  @relation(fields: [studentId], references: [id])
-  quiz      Quiz     @relation(fields: [quizId], references: [id])
+  student Student @relation(fields: [studentId], references: [id])
+  quiz    Quiz    @relation(fields: [quizId], references: [id])
 
   @@index([studentId])
   @@index([quizId])

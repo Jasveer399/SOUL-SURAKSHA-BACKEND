@@ -120,85 +120,141 @@ const createStudent = async (req, res) => {
       gender,
     } = CreateUserSchema.parse(req.body);
 
+    // Check if email or phone already exists in parent or therapist models
     const [parentCheck, therapistCheck] = await prisma.$transaction([
-      prisma.parent.findUnique({
-        where: { email: email },
-        select: { phone: true },
+      prisma.parent.findFirst({
+        where: { OR: [{ email: email }, { phone: phone }] },
+        select: { id: true, email: true, phone: true },
       }),
-      prisma.therapist.findUnique({
-        where: { email: email },
-        select: { phone: true },
+      prisma.therapist.findFirst({
+        where: { OR: [{ email: email }, { phone: phone }] },
+        select: { id: true, email: true, phone: true },
       }),
     ]);
 
     if (parentCheck) {
       return res.status(409).json({
-        message: "Email already registered as a parent",
+        message: `${
+          parentCheck.email === email ? "Email" : "Phone"
+        } already registered as a parent`,
         status: false,
       });
     }
+
     if (therapistCheck) {
       return res.status(409).json({
-        message: "Email already registered as a therapist",
+        message: `${
+          therapistCheck.email === email ? "Email" : "Phone"
+        } already registered as a therapist`,
         status: false,
       });
     }
+
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Check if the user was initially created with phone or email
+    const isSignupWithPhone = email.includes("@temp.com");
+
+    // Find existing student by email OR phone
     const existingStudent = await prisma.student.findFirst({
       where: {
         OR: [{ email: email }, { phone: phone }],
       },
     });
-    // Create user
 
+    // If no existing student, create a new one
     if (!existingStudent) {
-      const createdStudent = await prisma.student.create({
-        data: {
-          fullName,
-          userName,
-          phone,
-          email,
-          studentImage: profileImage,
-          password: hashedPassword,
-          gender,
-          trustPhoneNo,
-          dob,
-        },
-        select: {
-          id: true,
-          fullName: true,
-          userName: true,
-          email: true,
-          dob: true,
-          createdAt: true,
-          gender: true,
-          trustPhoneNo: true,
-        },
-      });
-      const { accessToken } = await accessTokenGenerator(
-        createStudent.id,
-        "student"
-      );
+      try {
+        const createdStudent = await prisma.student.create({
+          data: {
+            fullName,
+            userName,
+            phone,
+            email,
+            studentImage: profileImage,
+            password: hashedPassword,
+            gender,
+            trustPhoneNo,
+            dob,
+            isOtpVerify: true, // Since they've already verified OTP in the previous step
+          },
+          select: {
+            id: true,
+            fullName: true,
+            userName: true,
+            email: true,
+            dob: true,
+            createdAt: true,
+            gender: true,
+            trustPhoneNo: true,
+          },
+        });
 
-      return res.status(201).json({
-        data: createdStudent,
-        userType: "student",
-        accessToken,
-        message: "User created successfully",
-        status: true,
-      });
+        const { accessToken } = await accessTokenGenerator(
+          createdStudent.id,
+          "student"
+        );
+
+        return res.status(201).json({
+          data: createdStudent,
+          userType: "student",
+          accessToken,
+          message: "User created successfully",
+          status: true,
+        });
+      } catch (createError) {
+        // Handle unique constraint violations during creation
+        if (createError.code === "P2002") {
+          const field = createError.meta.target[0];
+          return res.status(409).json({
+            message: `${field} already exists in another student account`,
+            status: false,
+          });
+        }
+        throw createError;
+      }
     }
-    const queryKey = existingStudent.email
-      ? "email"
-      : existingParent.phone
-      ? "phone"
-      : null;
-    const queryValue = queryKey ? existingStudent[queryKey] : null;
-    if (queryKey) {
+
+    // Special handling for updating existing accounts based on signup method
+    if (existingStudent.email) {
+      // For phone-based signups: Allow updating from temp email to real email
+      // Check if the new email exists in another account with a non-null phone
+      if (!existingStudent.email.includes("@temp.com")) {
+        const emailExists = await prisma.student.findUnique({
+          where: { email: email },
+          select: { phone: true },
+        });
+
+        if (emailExists && emailExists.phone) {
+          return res.status(409).json({
+            message: "Email already registered with another student account",
+            status: false,
+          });
+        }
+      }
+    }
+
+    // Check if we're trying to update to a phone that already exists
+    if (existingStudent.phone) {
+      const phoneExists = await prisma.student.findUnique({
+        where: { phone: phone },
+        select: { id: true, email: true },
+      });
+
+      if (phoneExists && !phoneExists.email.includes("@temp.com")) {
+        return res.status(409).json({
+          message:
+            "Phone number already registered with another student account",
+          status: false,
+        });
+      }
+    }
+
+    try {
+      // Update the existing student by ID (safest approach)
       const updatedStudent = await prisma.student.update({
-        where: { [queryKey]: queryValue },
+        where: { id: existingStudent.id },
         data: {
           fullName,
           userName,
@@ -209,6 +265,7 @@ const createStudent = async (req, res) => {
           gender,
           trustPhoneNo,
           dob,
+          isOtpVerify: true, // Ensure OTP verification flag is set
         },
         select: {
           id: true,
@@ -234,6 +291,16 @@ const createStudent = async (req, res) => {
         message: "Student account updated successfully",
         status: true,
       });
+    } catch (updateError) {
+      // Handle unique constraint violations during update
+      if (updateError.code === "P2002") {
+        const field = updateError.meta.target[0];
+        return res.status(409).json({
+          message: `${field} already exists in another student account`,
+          status: false,
+        });
+      }
+      throw updateError;
     }
   } catch (error) {
     // Handle Zod validation errors

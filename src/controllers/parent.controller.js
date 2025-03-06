@@ -88,107 +88,161 @@ export const sendOTP = async (email, otp) => {
 // Create Parent Controller
 const createParent = async (req, res) => {
   try {
+    // Validate input using Zod
     const { fullName, phone, email, password, parentImage, dob, gender } =
       createParentSchema.parse(req.body);
 
-    // Check for email conflicts in other user types
+    // Check if email or phone already exists in student or therapist models
     const [studentCheck, therapistCheck] = await prisma.$transaction([
-      prisma.student.findUnique({
-        where: { email: email },
-        select: { phone: true },
+      prisma.student.findFirst({
+        where: { OR: [{ email: email }, { phone: phone }] },
+        select: { id: true, email: true, phone: true },
       }),
-      prisma.therapist.findUnique({
-        where: { email: email },
-        select: { phone: true },
+      prisma.therapist.findFirst({
+        where: { OR: [{ email: email }, { phone: phone }] },
+        select: { id: true, email: true, phone: true },
       }),
     ]);
 
-    // Conflict checks
+    // Handle conflicts with student accounts
     if (studentCheck) {
       return res.status(409).json({
-        message: "Email already registered as a Student",
+        message: `${
+          studentCheck.email === email ? "Email" : "Phone"
+        } already registered as a student`,
         status: false,
       });
     }
+
+    // Handle conflicts with therapist accounts
     if (therapistCheck) {
       return res.status(409).json({
-        message: "Email already registered as a therapist",
+        message: `${
+          therapistCheck.email === email ? "Email" : "Phone"
+        } already registered as a therapist`,
         status: false,
       });
     }
 
     // Hash password
-    const hashedPassword = await encryptPassword(password);
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Find existing parent by email or phone
+    // Check if the user was initially created with phone or email
+    const isSignupWithPhone = email.includes("@temp.com");
+
+    // Find existing parent by email OR phone
     const existingParent = await prisma.parent.findFirst({
       where: {
         OR: [{ email: email }, { phone: phone }],
       },
     });
 
-    // If no existing parent, create new
+    // If no existing parent, create a new one
     if (!existingParent) {
-      const createdParent = await prisma.parent.create({
+      try {
+        const createdParent = await prisma.parent.create({
+          data: {
+            fullName,
+            phone,
+            email,
+            parentImage,
+            password: hashedPassword,
+            gender,
+            dob,
+            isOtpVerify: true, // Since they've already verified OTP in the previous step
+          },
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            parentImage: true,
+            dob: true,
+            createdAt: true,
+            gender: true,
+          },
+        });
+
+        const { accessToken } = await accessTokenGenerator(
+          createdParent.id,
+          "parent"
+        );
+
+        return res.status(201).json({
+          data: createdParent,
+          userType: "parent",
+          accessToken,
+          message: "Parent account created successfully",
+          status: true,
+        });
+      } catch (createError) {
+        // Handle unique constraint violations during creation
+        if (createError.code === "P2002") {
+          const field = createError.meta.target[0];
+          return res.status(409).json({
+            message: `${field} already exists in another parent account`,
+            status: false,
+          });
+        }
+        throw createError;
+      }
+    }
+
+    // Special handling for updating existing accounts based on signup method
+    if (existingParent.email) {
+      // For phone-based signups: Allow updating from temp email to real email
+      // Check if the new email exists in another account with a non-null phone
+      if (!existingParent.email.includes("@temp.com")) {
+        const emailExists = await prisma.parent.findUnique({
+          where: { email: email },
+          select: { phone: true },
+        });
+
+        if (emailExists && emailExists.phone) {
+          return res.status(409).json({
+            message: "Email already registered with another parent account",
+            status: false,
+          });
+        }
+      }
+    }
+
+    // Check if we're trying to update to a phone that already exists
+    if (existingParent.phone) {
+      const phoneExists = await prisma.parent.findUnique({
+        where: { phone: phone },
+        select: { id: true, email: true },
+      });
+
+      if (phoneExists && !phoneExists.email.includes("@temp.com")) {
+        return res.status(409).json({
+          message:
+            "Phone number already registered with another parent account",
+          status: false,
+        });
+      }
+    }
+
+    try {
+      // Update the existing parent by ID (safest approach)
+      const updatedParent = await prisma.parent.update({
+        where: { id: existingParent.id },
         data: {
           fullName,
           phone,
           email,
-          password: hashedPassword,
           parentImage,
-          dob,
+          password: hashedPassword,
           gender,
+          dob,
+          isOtpVerify: true, // Ensure OTP verification flag is set
         },
         select: {
           id: true,
           fullName: true,
           email: true,
           parentImage: true,
-          createdAt: true,
           dob: true,
-          gender: true,
-        },
-      });
-
-      const { accessToken } = await accessTokenGenerator(
-        createdParent.id,
-        "parent"
-      );
-
-      return res.status(201).json({
-        data: createdParent,
-        userType: "parent",
-        accessToken,
-        message: "Parent account created successfully",
-        status: true,
-      });
-    }
-
-    const queryKey = existingParent.email
-      ? "email"
-      : existingParent.phone
-      ? "phone"
-      : null;
-    const queryValue = queryKey ? existingParent[queryKey] : null;
-    // If existing parent found, update using email (unique identifier)
-    if (queryKey) {
-      const updatedParent = await prisma.parent.update({
-        where: { [queryKey]: queryValue },
-        data: {
-          fullName,
-          phone,
-          password: hashedPassword,
-          parentImage,
-          dob,
-          gender,
-        },
-        select: {
-          id: true,
-          fullName: true,
-          email: true,
-          parentImage: true,
           createdAt: true,
-          dob: true,
           gender: true,
         },
       });
@@ -205,8 +259,19 @@ const createParent = async (req, res) => {
         message: "Parent account updated successfully",
         status: true,
       });
+    } catch (updateError) {
+      // Handle unique constraint violations during update
+      if (updateError.code === "P2002") {
+        const field = updateError.meta.target[0];
+        return res.status(409).json({
+          message: `${field} already exists in another parent account`,
+          status: false,
+        });
+      }
+      throw updateError;
     }
   } catch (error) {
+    // Handle Zod validation errors
     if (error instanceof z.ZodError) {
       return res.status(400).json({
         message: "Validation Error",
@@ -215,20 +280,7 @@ const createParent = async (req, res) => {
       });
     }
 
-    // Handle unique constraint errors
-    if (error.code === "P2002") {
-      const field = error.meta?.target?.[0];
-      return res.status(409).json({
-        message:
-          field === "email"
-            ? "Email already exists"
-            : field === "phone"
-            ? "Phone number already exists"
-            : "Account creation failed",
-        status: false,
-      });
-    }
-
+    // Handle other errors
     console.error(error);
     return res.status(500).json({
       message: "Error while creating parent account",
