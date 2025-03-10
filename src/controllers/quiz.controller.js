@@ -47,6 +47,7 @@ const CreateQuizQuestionSchema = z.object({
 
 const QuizAttemptSchema = z.object({
   quizId: z.string().uuid(),
+  questionId: z.string().uuid(), // Add this line
   answer: z.string().min(1, { message: "Answer cannot be empty" }),
 });
 
@@ -304,7 +305,7 @@ const editQuiz = async (req, res) => {
 const submitQuizAttempt = async (req, res) => {
   try {
     const studentId = req.user.id; // Assuming you have authentication middleware
-    const { quizId, answer } = QuizAttemptSchema.parse(req.body);
+    const { quizId, questionId, answer } = QuizAttemptSchema.parse(req.body);
 
     // Get the quiz to check the correct answer
     const quiz = await prisma.quiz.findUnique({
@@ -331,35 +332,104 @@ const submitQuizAttempt = async (req, res) => {
       });
     }
 
+    // Check if the student has already attempted this question
+    const existingAttempt = await prisma.quizAttempt.findFirst({
+      where: {
+        studentId,
+        quizId,
+        questionId,
+      },
+    });
+
+    if (existingAttempt) {
+      return res.status(400).json({
+        message: "You have already attempted this question",
+        status: false,
+      });
+    }
+
     // Create the attempt
+    const isCorrect = answer === question.answer;
+
     await prisma.quizAttempt.create({
       data: {
         studentId,
         quizId,
-        questionId: question.id,
+        questionId,
         answer,
-        isCorrect: answer === question.answer,
+        isCorrect,
       },
     });
 
-    if (question.answer === answer) {
-      prisma.student.update({
+    // If answer is correct, increment student's quiz score
+    if (isCorrect) {
+      // Calculate how many questions the student has correctly answered in this quiz
+      const correctAnswersCount = await prisma.quizAttempt.count({
+        where: {
+          studentId,
+          quizId,
+          isCorrect: true,
+        },
+      });
+
+      // Get total number of questions in the quiz
+      const totalQuestionsInQuiz = quiz.questions.length;
+
+      // Calculate the percentage score for this quiz (rounded to 2 decimal places)
+      const quizScore = Math.round(
+        (correctAnswersCount / totalQuestionsInQuiz) * 100
+      );
+
+      // Update the student's quiz score
+      await prisma.student.update({
         where: {
           id: studentId,
         },
         data: {
-          quizScore: { increment: 1 },
+          quizScore: { increment: 1 }, // Add 1 point for each correct answer
         },
       });
+
+      // Get student's updated total quiz score for response
+      const updatedStudent = await prisma.student.findUnique({
+        where: { id: studentId },
+        select: { quizScore: true },
+      });
+
       return res.status(200).json({
         message: "You have given the correct answer",
-        iscorrect: true,
+        isCorrect: true,
+        quizProgress: {
+          correctAnswers: correctAnswersCount,
+          totalQuestions: totalQuestionsInQuiz,
+          percentageComplete: `${quizScore}%`,
+        },
+        totalScore: updatedStudent.quizScore,
         status: true,
       });
     } else {
+      // Get current quiz progress even if answer is incorrect
+      const correctAnswersCount = await prisma.quizAttempt.count({
+        where: {
+          studentId,
+          quizId,
+          isCorrect: true,
+        },
+      });
+
+      const totalQuestionsInQuiz = quiz.questions.length;
+      const quizScore = Math.round(
+        (correctAnswersCount / totalQuestionsInQuiz) * 100
+      );
+
       return res.status(200).json({
         message: "You have given the wrong answer",
-        iscorrect: false,
+        isCorrect: false,
+        quizProgress: {
+          correctAnswers: correctAnswersCount,
+          totalQuestions: totalQuestionsInQuiz,
+          percentageComplete: `${quizScore}%`,
+        },
         status: true,
       });
     }
@@ -596,6 +666,47 @@ const deleteQuizQuestion = async (req, res) => {
   }
 };
 
+const getSpecificQuiz = async (req, res) => {
+  try {
+    const { quizId } = req.params;
+
+    // Get the quiz with its questions
+    const quiz = await prisma.quiz.findUnique({
+      where: { id: quizId },
+      include: {
+        questions: true,
+      },
+    });
+
+    if (!quiz) {
+      return res.status(404).json({
+        message: "Quiz not found",
+        status: false,
+      });
+    }
+
+    // Check if quiz is active
+    if (!quiz.isActive) {
+      return res.status(403).json({
+        message: "This quiz is not currently active",
+        status: false,
+      });
+    }
+
+    return res.status(200).json({
+      data: quiz,
+      message: "Quiz fetched successfully",
+      status: true,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      message: "Something went wrong",
+      status: false,
+    });
+  }
+};
+
 export {
   createQuiz,
   getQuizzes,
@@ -607,4 +718,5 @@ export {
   addQuizQuestion,
   deleteQuiz,
   deleteQuizQuestion,
+  getSpecificQuiz,
 };
