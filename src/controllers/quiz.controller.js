@@ -1,5 +1,9 @@
 import { prisma } from "../db/prismaClientConfig.js";
 import { z } from "zod";
+import {
+  deleteSingleObjectFromS3,
+  handleSingleUpload,
+} from "./aws.controller.js"; // Import S3 functions
 
 // Enhanced validation schema for Quiz
 const CreateQuizSchema = z.object({
@@ -11,7 +15,7 @@ const CreateQuizSchema = z.object({
     .string()
     .min(10, { message: "Description must be at least 10 characters long" })
     .max(1000, { message: "Description cannot exceed 1000 characters" }),
-  imageUrl: z.string().url({ message: "Invalid URL format" }).optional(),
+  imageUrl: z.string().optional(), // Image URL is now optional in the schema
   totalQuestions: z.number().int().min(1).optional(), // Total questions can be updated later
 });
 
@@ -51,8 +55,23 @@ const createQuiz = async (req, res) => {
   try {
     const validated = CreateQuizSchema.parse(req.body);
 
+    let imageUrl = req.body.imageUrl || null;
+
+    // If there's no imageUrl in the request body but there is a file, upload it
+    if (!imageUrl && req.file) {
+      // Set folder name for quiz images
+      req.query = { ...req.query, folder_name: "quiz-images" };
+
+      // Upload the image to S3
+      const uploadResult = await handleSingleUpload(req, res);
+      imageUrl = uploadResult.objectUrl;
+    }
+
     const newQuiz = await prisma.quiz.create({
-      data: validated,
+      data: {
+        ...validated,
+        imageUrl: imageUrl,
+      },
     });
 
     return res.status(201).json({
@@ -138,7 +157,7 @@ const getQuizzes = async (req, res) => {
     const pageSize = Math.min(limit, 10);
     const skip = (pageNumber - 1) * pageSize;
 
-    console.log("activequiz: >>", activequiz);
+    // console.log("activequiz: >>", activequiz);
 
     const where = {};
     if (activequiz !== undefined) {
@@ -188,12 +207,47 @@ const editQuiz = async (req, res) => {
     const { id } = req.params;
     const validatedQuiz = CreateQuizSchema.parse(req.body);
 
-    // Update quiz details
+    // Get the existing quiz to compare image URLs
+    const existingQuiz = await prisma.quiz.findUnique({ where: { id } });
+    if (!existingQuiz) {
+      return res.status(404).json({ message: "Quiz not found", status: false });
+    }
+
+    // Default to existing image URL, then check if a new URL was provided in the request body
+    let imageUrl = existingQuiz.imageUrl;
+
+    // If there's a new imageUrl in the request body, use it
+    if (req.body.imageUrl && req.body.imageUrl !== existingQuiz.imageUrl) {
+      imageUrl = req.body.imageUrl;
+
+      // Delete the old image from S3 if it exists
+      if (existingQuiz.imageUrl) {
+        await deleteSingleObjectFromS3(existingQuiz.imageUrl);
+      }
+    }
+    // If there's no imageUrl in the request body but there is a file, upload it
+    else if (req.file) {
+      // Set folder name for quiz images
+      req.query = { ...req.query, folder_name: "quiz-images" };
+
+      // Upload the image to S3
+      const uploadResult = await handleSingleUpload(req, res);
+      imageUrl = uploadResult.objectUrl;
+
+      // Delete the old image from S3 if it exists
+      if (existingQuiz.imageUrl) {
+        await deleteSingleObjectFromS3(existingQuiz.imageUrl);
+      }
+    }
+
     const updatedQuiz = await prisma.quiz.update({
       where: {
         id,
       },
-      data: validatedQuiz,
+      data: {
+        ...validatedQuiz,
+        imageUrl: imageUrl,
+      },
     });
 
     // Handle question updates (assuming questions are sent in the request body)
@@ -370,7 +424,7 @@ const toogleisActive = async (req, res) => {
   try {
     const { id, isActive } = req.params;
 
-    console.log("isActive: >>", typeof isActive);
+    // console.log("isActive: >>", typeof isActive);
     const updatedQuiz = await prisma.quiz.update({
       where: {
         id,
@@ -488,6 +542,11 @@ const deleteQuiz = async (req, res) => {
       },
     });
 
+    // Delete the image from S3 if it exists
+    if (quiz.imageUrl) {
+      await deleteSingleObjectFromS3(quiz.imageUrl);
+    }
+
     return res.status(200).json({
       message: "Quiz deleted successfully",
       status: true,
@@ -496,6 +555,42 @@ const deleteQuiz = async (req, res) => {
     console.error(error);
     return res.status(500).json({
       message: "Something went wrong while deleting the quiz",
+      status: false,
+    });
+  }
+};
+
+const deleteQuizQuestion = async (req, res) => {
+  try {
+    const { questionId } = req.params;
+
+    // Check if the question exists
+    const question = await prisma.quizQuestion.findUnique({
+      where: { id: questionId },
+    });
+
+    if (!question) {
+      return res.status(404).json({
+        message: "Quiz question not found",
+        status: false,
+      });
+    }
+
+    // Delete the quiz question
+    await prisma.quizQuestion.delete({
+      where: {
+        id: questionId,
+      },
+    });
+
+    return res.status(200).json({
+      message: "Quiz question deleted successfully",
+      status: true,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      message: "Something went wrong while deleting the quiz question",
       status: false,
     });
   }
@@ -511,4 +606,5 @@ export {
   getUnattemptedQuizzes,
   addQuizQuestion,
   deleteQuiz,
+  deleteQuizQuestion,
 };

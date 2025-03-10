@@ -8,6 +8,7 @@ import {
   toogleisActive,
   addQuizQuestion,
   deleteQuiz,
+  deleteQuizQuestion,
 } from "../controllers/quiz.controller.js";
 import { verifyJWT } from "../middleware/auth.middleware.js";
 
@@ -25,5 +26,6 @@ router.get(
   getUnattemptedQuizzes
 );
 router.delete("/deleteQuiz/:id", deleteQuiz);
+router.delete("/deleteQuizQuestion/:questionId", deleteQuizQuestion);
 
 export { router as quizRoutes };
