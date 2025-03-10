@@ -321,6 +321,13 @@ const sendEmailOtp = async (req, res) => {
       });
     }
 
+    if (userType === "therapist" && !user.isTherapistVerifiedByAdmin) {
+      return res.status(401).json({
+        message: "Therapist account is not verified by admin yet",
+        status: false,
+      });
+    }
+
     // Generate 4-digit OTP
     const generatedOTP = Math.floor(1000 + Math.random() * 9000).toString();
 

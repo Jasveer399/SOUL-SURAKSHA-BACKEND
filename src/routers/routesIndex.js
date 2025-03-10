@@ -12,6 +12,7 @@ import { parentRoutes } from "./parent.routes.js";
 import othersRoutes from "./others.routes.js";
 import adminRoutes from "./admin.routes.js";
 import { quizRoutes } from "./quiz.routes.js";
+import { educationalVideoRoutes } from "./educationalVideo.routes.js";
 
 const router = Router();
 
@@ -28,5 +29,6 @@ router.use("/api/v1/donation", donationRoutes);
 router.use("/api/v1/others", othersRoutes);
 router.use("/api/v1/admin", adminRoutes);
 router.use("/api/v1/quiz", quizRoutes);
+router.use("/api/v1/educational-video", educationalVideoRoutes);
 
 export { router as routes };

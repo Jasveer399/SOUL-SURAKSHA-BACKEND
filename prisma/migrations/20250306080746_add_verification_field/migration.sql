@@ -68,6 +68,7 @@ CREATE TABLE "Therapist" (
     "gender" TEXT,
     "dob" TEXT DEFAULT '',
     "otp" TEXT,
+    "isTherapistVerifiedByAdmin" BOOLEAN NOT NULL DEFAULT false,
     "isOtpVerify" BOOLEAN NOT NULL DEFAULT false,
     "isMailOtpVerify" BOOLEAN NOT NULL DEFAULT false,
     "recoveryEmail" TEXT,
@@ -149,6 +150,7 @@ CREATE TABLE "StoryChunk" (
 CREATE TABLE "Report" (
     "id" TEXT NOT NULL,
     "reason" TEXT NOT NULL,
+    "isNew" BOOLEAN NOT NULL DEFAULT true,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "storyId" TEXT NOT NULL,
@@ -246,7 +248,7 @@ CREATE TABLE "Review" (
     "review" TEXT NOT NULL,
     "rating" INTEGER NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "studentId" TEXT,
     "therapistId" TEXT,
 
@@ -255,6 +257,20 @@ CREATE TABLE "Review" (
 
 -- CreateTable
 CREATE TABLE "Quiz" (
+    "id" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
+    "description" TEXT NOT NULL,
+    "imageUrl" TEXT,
+    "totalQuestions" INTEGER DEFAULT 0,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Quiz_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "QuizQuestion" (
     "id" TEXT NOT NULL,
     "question" TEXT NOT NULL,
     "option1" TEXT NOT NULL,
@@ -265,8 +281,9 @@ CREATE TABLE "Quiz" (
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "quizId" TEXT NOT NULL,
 
-    CONSTRAINT "Quiz_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "QuizQuestion_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -277,6 +294,7 @@ CREATE TABLE "QuizAttempt" (
     "answer" TEXT NOT NULL,
     "isCorrect" BOOLEAN NOT NULL,
     "attemptedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "questionId" TEXT,
 
     CONSTRAINT "QuizAttempt_pkey" PRIMARY KEY ("id")
 );
@@ -395,6 +413,9 @@ CREATE INDEX "QuizAttempt_studentId_idx" ON "QuizAttempt"("studentId");
 -- CreateIndex
 CREATE INDEX "QuizAttempt_quizId_idx" ON "QuizAttempt"("quizId");
 
+-- CreateIndex
+CREATE INDEX "QuizAttempt_questionId_idx" ON "QuizAttempt"("questionId");
+
 -- AddForeignKey
 ALTER TABLE "DonationRecord" ADD CONSTRAINT "DonationRecord_donationId_fkey" FOREIGN KEY ("donationId") REFERENCES "Donation"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
@@ -474,7 +495,13 @@ ALTER TABLE "Review" ADD CONSTRAINT "Review_studentId_fkey" FOREIGN KEY ("studen
 ALTER TABLE "Review" ADD CONSTRAINT "Review_therapistId_fkey" FOREIGN KEY ("therapistId") REFERENCES "Therapist"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "QuizQuestion" ADD CONSTRAINT "QuizQuestion_quizId_fkey" FOREIGN KEY ("quizId") REFERENCES "Quiz"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "QuizAttempt" ADD CONSTRAINT "QuizAttempt_studentId_fkey" FOREIGN KEY ("studentId") REFERENCES "Student"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "QuizAttempt" ADD CONSTRAINT "QuizAttempt_quizId_fkey" FOREIGN KEY ("quizId") REFERENCES "Quiz"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "QuizAttempt" ADD CONSTRAINT "QuizAttempt_questionId_fkey" FOREIGN KEY ("questionId") REFERENCES "QuizQuestion"("id") ON DELETE SET NULL ON UPDATE CASCADE;

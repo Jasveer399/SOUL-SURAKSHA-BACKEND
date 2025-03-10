@@ -105,6 +105,19 @@ export const sendOTP = async (email, otp) => {
   }
 };
 
+export const sendMail = async ({ email, subject, html }) => {
+  try {
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER, // Sender address
+      to: email, // List of receivers
+      subject: subject, // Subject line
+      html: html, // HTML body content
+    });
+  } catch (error) {
+    console.error("Error sending OTP email:", error);
+    throw new Error("Failed to send OTP email");
+  }
+};
 const createStudent = async (req, res) => {
   try {
     // Validate input using Zod

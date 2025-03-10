@@ -1,13 +1,12 @@
 import { z } from "zod";
 import { prisma } from "../db/prismaClientConfig.js";
-import {
-  decryptPassword,
-  encryptPassword,
-} from "../utils/passwordEncryptDescrypt.js";
+import { decryptPassword } from "../utils/passwordEncryptDescrypt.js";
+import bcrypt from "bcryptjs";
 import { deleteSingleObjectFromS3 } from "./aws.controller.js";
 import { accessTokenGenerator } from "../utils/Helper.js";
 import nodemailer from "nodemailer";
 import { generateOTP } from "../utils/otpUtils.js";
+import { sendMail } from "./student.controller.js";
 
 const createdTherapistSchema = z.object({
   userName: z
@@ -343,6 +342,24 @@ const editTherapist = async (req, res) => {
 
     const therapistId = req.user.id;
 
+    if (!therapistId) {
+      return res.status(400).json({
+        message: "Therapist ID not found",
+        status: false,
+      });
+    }
+
+    const checkTherapist = await prisma.therapist.findUnique({
+      where: { id: therapistId },
+    });
+
+    if (!checkTherapist) {
+      return res.status(404).json({
+        message: "Therapist not found",
+        status: false,
+      });
+    }
+
     const updatedTherapist = await prisma.therapist.update({
       where: { id: therapistId },
       data: {
@@ -370,8 +387,8 @@ const editTherapist = async (req, res) => {
       },
     });
 
-    if (imageBeforeChange) {
-      await deleteSingleObjectFromS3(imageBeforeChange);
+    if (checkTherapist.therapistImage) {
+      await deleteSingleObjectFromS3(checkTherapist.therapistImage);
     }
 
     return res.status(200).json({
@@ -412,6 +429,15 @@ const loginTherapist = async (req, res) => {
     if (!therapist) {
       return res.status(404).json({
         message: "Therapist Account not found. Check your email correctly",
+        status: false,
+      });
+    }
+
+    console.log("therapist: >>", therapist);
+
+    if (therapist && !therapist.isTherapistVerifiedByAdmin) {
+      return res.status(401).json({
+        message: "Therapist account is not verified by admin yet",
         status: false,
       });
     }
@@ -612,13 +638,150 @@ const getSpecificTherapist = async (req, res) => {
     });
     return res.status(200).json({
       data: therapist,
-      message: "Therapist fetched successfully",
+      message: "Therapists fetched successfully",
       status: true,
     });
   } catch (error) {
     console.error(error);
     return res.status(500).json({
-      message: "Error while fetching therapist",
+      message: "Error while fetching therapists",
+      error: error.message,
+      status: false,
+    });
+  }
+};
+
+const getUnverifiedTherapists = async (req, res) => {
+  try {
+    const therapists = await prisma.therapist.findMany({
+      where: {
+        isTherapistVerifiedByAdmin: false,
+        isTherapistApprove: false,
+        isTherapistReject: false,
+      },
+      select: {
+        userName: true,
+        id: true,
+        specialization: true,
+        createdAt: true,
+      },
+    });
+
+    const formattedData = therapists.map((therapist) => {
+      return {
+        id: therapist.id,
+        message: `Dr. ${therapist.userName} has registered as a new therapist`,
+        isNew: true,
+        therapistId: `T-${therapist.id.substring(0, 8)}`,
+        specialty: therapist.specialization,
+        timestamp: therapist.createdAt.toISOString(),
+      };
+    });
+
+    return res.status(200).json({
+      data: formattedData,
+      message: "Unverified therapists fetched successfully",
+      status: true,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      message: "Error while fetching Unverified therapist",
+      error: error.message,
+      status: false,
+    });
+  }
+};
+
+const getUnverifiedTherapist = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({
+        message: "Please Provide id",
+        error: error.message,
+        status: false,
+      });
+    }
+    const therapist = await prisma.therapist.findFirst({
+      where: {
+        id,
+      },
+      select: {
+        userName: true,
+        phone: true,
+        email: true,
+        gender: true,
+        dob: true,
+        licenseNO: true,
+        languageType: true,
+        qualifications: true,
+        specialization: true,
+        experience: true,
+      },
+    });
+
+    if (!therapist) {
+      return res.status(404).json({
+        message: "Therapist Not Found",
+        status: false,
+      });
+    }
+
+    return res.status(200).json({
+      data: therapist,
+      message: "Therapist fatched successfully",
+      status: true,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "error while Fatching Therapist",
+      error: error.message,
+      status: false,
+    });
+  }
+};
+
+const approveTherapist = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({
+        message: "Required fields are missing.",
+        status: false,
+      });
+    }
+
+    const approveUser = await prisma.therapist.update({
+      where: {
+        id,
+      },
+      data: {
+        isTherapistVerifiedByAdmin: true,
+        isTherapistApprove: true,
+      },
+    });
+
+    if (!approveUser) {
+      return res.status(404).json({
+        message: "Therapist Not Found",
+        status: false,
+      });
+    }
+
+    await sendMail({
+      email: approveUser.email,
+      subject: "Approve Therapist",
+      html: "",
+    });
+    return res.status(200).json({
+      message: "Therapist Approve Successsfully",
+      status: true,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error While Approve Therapist",
       error: error.message,
       status: false,
     });
@@ -632,4 +795,7 @@ export {
   editTherapist,
   getAllTherapist,
   getSpecificTherapist,
+  getUnverifiedTherapists,
+  getUnverifiedTherapist,
+  approveTherapist,
 };

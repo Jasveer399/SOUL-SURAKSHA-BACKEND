@@ -89,6 +89,8 @@ model Therapist {
   dob                        String?          @default("")
   otp                        String?
   isTherapistVerifiedByAdmin Boolean          @default(false)
+  isTherapistApprove         Boolean          @default(false)
+  isTherapistReject          Boolean          @default(false)
   isOtpVerify                Boolean          @default(false)
   isMailOtpVerify            Boolean          @default(false)
   recoveryEmail              String?
@@ -400,4 +402,14 @@ model QuizAttempt {
   @@index([studentId])
   @@index([quizId])
   @@index([questionId])
+}
+
+model EducationalVideo {
+  id           String   @id @default(uuid())
+  title        String
+  description  String
+  thumbnailUrl String
+  videoUrl     String
+  IsForStudent Boolean
+  createdAt    DateTime @default(now())
 }
