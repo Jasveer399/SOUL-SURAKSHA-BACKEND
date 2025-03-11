@@ -490,6 +490,111 @@ const getStudentQuizResults = async (req, res) => {
   }
 };
 
+const getLeaderboard = async (req, res) => {
+  try {
+    const { limit = 10, page = 1 } = req.query;
+    const pageNumber = Math.max(Number(page), 1);
+    const pageSize = Math.min(Number(limit), 50); // Limit max results to 50
+    const skip = (pageNumber - 1) * pageSize;
+
+    // Get current user ID if authenticated
+    const currentUserId = req.user?.id;
+
+    // Get top students ordered by quiz score
+    const topStudents = await prisma.student.findMany({
+      select: {
+        id: true,
+        fullName: true,
+        userName: true,
+        studentImage: true,
+        quizScore: true,
+      },
+      orderBy: {
+        quizScore: "desc",
+      },
+      skip: skip,
+      take: pageSize,
+    });
+
+    // Get total count for pagination
+    const totalStudents = await prisma.student.count();
+
+    // Calculate pagination values
+    const totalPages = Math.ceil(totalStudents / pageSize);
+    const hasNextPage = pageNumber < totalPages;
+    const hasPreviousPage = pageNumber > 1;
+
+    // If user is authenticated, get their rank
+    let currentUserRank = null;
+    if (currentUserId) {
+      // Count students with higher quiz scores
+      const higherRankedCount = await prisma.student.count({
+        where: {
+          quizScore: {
+            gt:
+              (
+                await prisma.student.findUnique({
+                  where: { id: currentUserId },
+                  select: { quizScore: true },
+                })
+              )?.quizScore || 0,
+          },
+        },
+      });
+
+      // Get the current user's data
+      const currentUser = await prisma.student.findUnique({
+        where: { id: currentUserId },
+        select: {
+          id: true,
+          fullName: true,
+          userName: true,
+          studentImage: true,
+          quizScore: true,
+        },
+      });
+
+      if (currentUser) {
+        // Rank is position (1-based index)
+        const rank = higherRankedCount + 1;
+        currentUserRank = {
+          rank,
+          ...currentUser,
+        };
+      }
+    }
+
+    // Assign ranks to top students
+    const rankedStudents = topStudents.map((student, index) => ({
+      rank: skip + index + 1,
+      ...student,
+    }));
+
+    return res.status(200).json({
+      data: {
+        leaderboard: rankedStudents,
+        currentUserRank,
+      },
+      pagination: {
+        totalStudents,
+        totalPages,
+        hasNextPage,
+        hasPreviousPage,
+        currentPage: pageNumber,
+        pageSize,
+      },
+      message: "Leaderboard fetched successfully",
+      status: true,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      message: "Something went wrong while fetching the leaderboard",
+      status: false,
+    });
+  }
+};
+
 const toogleisActive = async (req, res) => {
   try {
     const { id, isActive } = req.params;
@@ -719,4 +824,5 @@ export {
   deleteQuiz,
   deleteQuizQuestion,
   getSpecificQuiz,
+  getLeaderboard,
 };

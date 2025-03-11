@@ -10,6 +10,7 @@ import {
   deleteQuiz,
   deleteQuizQuestion,
   getSpecificQuiz,
+  getLeaderboard,
 } from "../controllers/quiz.controller.js";
 import { verifyJWT } from "../middleware/auth.middleware.js";
 
@@ -27,6 +28,7 @@ router.get(
   verifyJWT(["student"]),
   getUnattemptedQuizzes
 );
+router.get("/leaderboard", verifyJWT(["student"]), getLeaderboard);
 router.delete("/deleteQuiz/:id", deleteQuiz);
 router.delete("/deleteQuizQuestion/:questionId", deleteQuizQuestion);
 
