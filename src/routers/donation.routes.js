@@ -5,6 +5,7 @@ import {
   createOrder,
   deleteDonation,
   getActiveDonations,
+  getCompletedDonations,
   getInavtiveDonations,
   getSpecificDonation,
   getSpecificUserDonationRecord,
@@ -16,12 +17,25 @@ const router = Router();
 
 router.post("/createDonation", createDonation);
 router.get("/getActiveDonations", getActiveDonations);
+router.get("/getCompletedDonations", getCompletedDonations);
 router.put("/updateDonation/:id", updateDonation);
 router.delete("/deleteDonation/:id", deleteDonation);
 router.get("/getSpecificDonation/:id", getSpecificDonation);
-router.get("/getSpecificUserDonationRecord", verifyJWT(["therapist", "parent"]), getSpecificUserDonationRecord);
-router.get("/getInavtiveDonations", verifyJWT(["therapist", "admin", "parent"]), getInavtiveDonations);
+router.get(
+  "/getSpecificUserDonationRecord",
+  verifyJWT(["therapist", "parent"]),
+  getSpecificUserDonationRecord
+);
+router.get(
+  "/getInavtiveDonations",
+  verifyJWT(["therapist", "admin", "parent"]),
+  getInavtiveDonations
+);
 router.post("/createOrder", verifyJWT(["therapist", "parent"]), createOrder);
-router.post("/createDonationRecord", verifyJWT(["therapist", "parent"]), createDonationRecord);
+router.post(
+  "/createDonationRecord",
+  verifyJWT(["therapist", "parent"]),
+  createDonationRecord
+);
 
 export { router as donationRoutes };

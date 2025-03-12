@@ -107,11 +107,39 @@ const updateDonation = async (req, res) => {
 
 const getActiveDonations = async (req, res) => {
   try {
+    const currentDate = new Date();
+
     const donations = await prisma.donation.findMany({
       where: {
         isDonationActive: true,
+        timePeriod: {
+          gt: currentDate, // Only show donations where timePeriod is in the future
+        },
       },
     });
+
+    // Automatically update expired donations to inactive
+    const expiredDonations = await prisma.donation.findMany({
+      where: {
+        isDonationActive: true,
+        timePeriod: {
+          lte: currentDate, // Find donations where timePeriod has passed
+        },
+      },
+    });
+
+    if (expiredDonations.length > 0) {
+      await prisma.donation.updateMany({
+        where: {
+          id: {
+            in: expiredDonations.map((donation) => donation.id),
+          },
+        },
+        data: {
+          isDonationActive: false,
+        },
+      });
+    }
 
     return res.status(200).json({
       message: "Active donations fetched successfully",
@@ -119,6 +147,84 @@ const getActiveDonations = async (req, res) => {
       status: true,
     });
   } catch (error) {
+    return res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
+      status: false,
+    });
+  }
+};
+
+const getCompletedDonations = async (req, res) => {
+  try {
+    const { page = 1, limit = 10 } = req.query;
+    const pageNumber = Math.max(Number(page), 1);
+    const pageSize = Math.min(Number(limit), 50); // Limit max results to 50
+    const skip = (pageNumber - 1) * pageSize;
+
+    // Find donations where:
+    // 1. They're marked as inactive (isDonationActive = false), AND
+    // 2. The received amount has reached or exceeded the total amount
+    const completedDonations = await prisma.donation.findMany({
+      where: {
+        isDonationActive: false,
+        receivedAmount: {
+          gte: prisma.donation.fields.totalAmount,
+        },
+      },
+      orderBy: {
+        updatedAt: "desc",
+      },
+      skip,
+      take: pageSize,
+      include: {
+        _count: {
+          select: { donors: true },
+        },
+      },
+    });
+
+    // Get total count for pagination
+    const totalCompletedDonations = await prisma.donation.count({
+      where: {
+        isDonationActive: false,
+        receivedAmount: {
+          gte: prisma.donation.fields.totalAmount,
+        },
+      },
+    });
+
+    // Calculate pagination values
+    const totalPages = Math.ceil(totalCompletedDonations / pageSize);
+    const hasNextPage = pageNumber < totalPages;
+    const hasPreviousPage = pageNumber > 1;
+
+    // Format donation statistics
+    const formattedDonations = completedDonations.map((donation) => ({
+      ...donation,
+      percentageFunded: Math.min(
+        Math.round((donation.receivedAmount / donation.totalAmount) * 100),
+        100
+      ),
+      donorCount: donation._count.donors,
+      _count: undefined, // Remove _count from response
+    }));
+
+    return res.status(200).json({
+      message: "Completed donations fetched successfully",
+      data: formattedDonations,
+      pagination: {
+        totalDonations: totalCompletedDonations,
+        totalPages,
+        hasNextPage,
+        hasPreviousPage,
+        currentPage: pageNumber,
+        pageSize,
+      },
+      status: true,
+    });
+  } catch (error) {
+    console.error(error);
     return res.status(500).json({
       message: "Internal server error",
       error: error.message,
@@ -139,7 +245,7 @@ const deleteDonation = async (req, res) => {
     if (deletedDonation.imgUrl) {
       await deleteSingleObjectFromS3(deletedDonation.imgUrl);
     }
-    
+
     return res.status(200).json({
       message: "Donation deleted successfully",
       status: true,
@@ -374,7 +480,8 @@ const createDonationRecord = async (req, res) => {
         },
       });
 
-      if (updatedDonation.totalAmount >= updatedDonation.receivedAmount) {
+      // FIX: Only mark as inactive if receivedAmount has reached or exceeded totalAmount
+      if (updatedDonation.receivedAmount >= updatedDonation.totalAmount) {
         await prisma.donation.update({
           where: {
             id: donationId,
@@ -409,4 +516,5 @@ export {
   getInavtiveDonations,
   createOrder,
   createDonationRecord,
+  getCompletedDonations,
 };
