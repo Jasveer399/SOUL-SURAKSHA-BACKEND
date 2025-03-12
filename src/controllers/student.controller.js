@@ -133,6 +133,18 @@ const createStudent = async (req, res) => {
       gender,
     } = CreateUserSchema.parse(req.body);
 
+    if (CreateUserSchema.safeParse(req.body).success === false) {
+      const errors = CreateUserSchema.error.errors.map((error) => ({
+        field: error.path.join("."),
+        message: error.message,
+      }));
+      return res.status(400).json({
+        message: "Validation failed",
+        errors,
+        status: false,
+      });
+    }
+
     // Check if email or phone already exists in parent or therapist models
     const [parentCheck, therapistCheck] = await prisma.$transaction([
       prisma.parent.findFirst({

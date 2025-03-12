@@ -29,6 +29,6 @@ router.use("/api/v1/donation", donationRoutes);
 router.use("/api/v1/others", othersRoutes);
 router.use("/api/v1/admin", adminRoutes);
 router.use("/api/v1/quiz", quizRoutes);
-router.use("/api/v1/educational-video", educationalVideoRoutes);
+router.use("/api/v1/educationalvideo", educationalVideoRoutes);
 
 export { router as routes };

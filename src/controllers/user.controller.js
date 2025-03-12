@@ -20,6 +20,7 @@ import {
   sendTherapistOTP,
 } from "./therapist.controller.js";
 import jwt from "jsonwebtoken";
+import { decryptPassword } from "../utils/passwordEncryptDescrypt.js";
 
 // Phone validation schema
 export const phoneNumberSchema = z
@@ -48,6 +49,7 @@ export const otpRequestSchema = z.object({
 // Schema for email-based OTP requests
 export const emailOtpRequestSchema = z.object({
   email: emailSchema,
+  password: z.string().min(1, { message: "Password is required" }),
   userType: userTypeSchema,
 });
 
@@ -292,7 +294,7 @@ const sendEmailOtp = async (req, res) => {
       });
     }
 
-    const { email, userType } = validationResult.data;
+    const { email, password, userType } = validationResult.data;
 
     // Check if email exists in respective user type
     let user;
@@ -321,6 +323,13 @@ const sendEmailOtp = async (req, res) => {
       });
     }
 
+    const userPassword = await decryptPassword(password, user.password);
+    if (!userPassword) {
+      return res.status(401).json({
+        message: "Invalid password",
+        status: false,
+      });
+    }
     if (userType === "therapist" && !user.isTherapistVerifiedByAdmin) {
       return res.status(401).json({
         message: "Therapist account is not verified by admin yet",
@@ -765,7 +774,6 @@ const handleWebRedirect = (res, params) => {
 const createUserAndGetOtp = async (req, res) => {
   try {
     // Validate request body using Zod
-    console.log("req.body", req.body);
     const validationResult = otpRequestSchema.safeParse(req.body);
 
     if (!validationResult.success) {
