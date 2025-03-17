@@ -223,7 +223,12 @@ const editQuiz = async (req, res) => {
 
       // Delete the old image from S3 if it exists
       if (existingQuiz.imageUrl) {
-        await deleteSingleObjectFromS3(existingQuiz.imageUrl);
+        try {
+          await deleteSingleObjectFromS3(existingQuiz.imageUrl);
+        } catch (s3Error) {
+          console.error("Error deleting old image from S3:", s3Error);
+          // Continue execution even if image deletion fails
+        }
       }
     }
     // If there's no imageUrl in the request body but there is a file, upload it
@@ -237,7 +242,12 @@ const editQuiz = async (req, res) => {
 
       // Delete the old image from S3 if it exists
       if (existingQuiz.imageUrl) {
-        await deleteSingleObjectFromS3(existingQuiz.imageUrl);
+        try {
+          await deleteSingleObjectFromS3(existingQuiz.imageUrl);
+        } catch (s3Error) {
+          console.error("Error deleting old image from S3:", s3Error);
+          // Continue execution even if image deletion fails
+        }
       }
     }
 
@@ -719,7 +729,12 @@ const deleteQuiz = async (req, res) => {
 
     // Delete the image from S3 if it exists
     if (quiz.imageUrl) {
-      await deleteSingleObjectFromS3(quiz.imageUrl);
+      try {
+        await deleteSingleObjectFromS3(quiz.imageUrl);
+      } catch (s3Error) {
+        console.error("Error deleting quiz image from S3:", s3Error);
+        // Continue execution even if image deletion fails
+      }
     }
 
     return res.status(200).json({

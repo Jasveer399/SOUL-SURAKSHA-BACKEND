@@ -36,16 +36,49 @@ const generateUploadUrl = async (fileType, folder_name) => {
 
 // Delete single object
 export const deleteSingleObjectFromS3 = async (fileUrl) => {
-  // Extract just the key path from the URL
-  const key = fileUrl.split(".amazonaws.com/")[1];
-
   try {
+    // Handle case where fileUrl is null or undefined
+    if (!fileUrl) {
+      console.log("No file URL provided for deletion");
+      return {
+        success: true,
+        message: "No file to delete",
+      };
+    }
+
+    // Extract just the key path from the URL - more robust URL parsing
+    let key;
+    try {
+      const urlObj = new URL(fileUrl);
+      // Remove the domain part and any leading slash to get the key
+      const pathWithoutLeadingSlash = urlObj.pathname.startsWith("/")
+        ? urlObj.pathname.substring(1)
+        : urlObj.pathname;
+      key = pathWithoutLeadingSlash;
+    } catch (urlError) {
+      console.error("Invalid URL format:", urlError);
+      return {
+        success: false,
+        message: "Invalid URL format",
+      };
+    }
+
+    // Check if key was properly extracted
+    if (!key) {
+      console.error("Could not extract key from URL:", fileUrl);
+      return {
+        success: false,
+        message: "Could not extract key from URL",
+      };
+    }
+
     const command = new DeleteObjectCommand({
       Bucket: BUCKET_NAME,
       Key: key,
     });
+
     const response = await s3Client.send(command);
-    console.log("response", response);
+    console.log("S3 deletion response:", response);
     return {
       success: true,
       message: "File deleted successfully",
@@ -107,9 +140,9 @@ async function handleMultipleDelete(req, res) {
 
 async function handleSingleUpload(req, res) {
   try {
-    const { fileType,folder_name } = req.query; // expect 'image/jpeg' or 'image/png' etc.
+    const { fileType, folder_name } = req.query; // expect 'image/jpeg' or 'image/png' etc.
     console.log("type", fileType);
-    const uploadData = await generateUploadUrl(fileType,folder_name);
+    const uploadData = await generateUploadUrl(fileType, folder_name);
     res.status(200).json(uploadData);
   } catch (error) {
     res.status(500).json({ error: error.message });
