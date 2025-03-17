@@ -28,12 +28,17 @@ const createDonation = async (req, res) => {
   try {
     const validatedData = DonationSchema.parse(req.body);
 
+    const donationAmount = (validatedData.totalAmount * 20) / 100;
+
+    console.log("donationAmount =====>", donationAmount);
+
     const donation = await prisma.donation.create({
       data: {
         title: validatedData.title,
         desc: validatedData.desc,
         imgUrl: validatedData.image || null,
-        totalAmount: parseFloat(validatedData.totalAmount),
+        receivedAmount: donationAmount || 0,
+        totalAmount: parseInt(validatedData?.timePeriod) || 0,
         timePeriod: new Date(validatedData.timePeriod),
         organizedBy: validatedData.organizedBy,
         isDonationActive: true,
@@ -46,6 +51,7 @@ const createDonation = async (req, res) => {
       status: true,
     });
   } catch (error) {
+    console.log("error: >>", error);
     if (error instanceof z.ZodError) {
       return res.status(400).json({
         message: "Validation failed",

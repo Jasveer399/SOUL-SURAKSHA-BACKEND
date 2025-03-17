@@ -257,6 +257,7 @@ const relatedEducationalVideos = async (req, res) => {
     });
   }
 };
+
 export {
   createEducationalVideo,
   getStudentEducationalVideos,
