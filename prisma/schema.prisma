@@ -51,6 +51,8 @@ model Student {
   quizAttempts     QuizAttempt[]
   viewBlog         ViewBlog[]
   reportsSubmitted Report[]       @relation("StudentReporter")
+  favorites        favorites[]
+  hidenStories     hidenStories[]
 
   @@index([email])
 }
@@ -75,6 +77,8 @@ model Parent {
   DonationRecord   DonationRecord[]
   viewBlog         ViewBlog[]
   reportsSubmitted Report[]
+  favorites        favorites[]
+  hidenStories     hidenStories[]
 
   @@index([email])
 }
@@ -111,6 +115,8 @@ model Therapist {
   DonationRecord             DonationRecord[]
   viewBlog                   ViewBlog[]
   reportsSubmitted           Report[]
+  favorites                  favorites[]
+  hidenStories               hidenStories[]
 }
 
 model Donation {
@@ -150,20 +156,22 @@ model DonationRecord {
 }
 
 model Story {
-  id            String      @id @default(uuid())
+  id            String         @id @default(uuid())
   title         String? // You might want to add this
   content       String
-  image         String      @default("")
-  audio         String      @default("")
+  image         String         @default("")
+  audio         String         @default("")
   audioDuration Float?
-  createdAt     DateTime    @default(now())
+  createdAt     DateTime       @default(now())
   studentId     String
-  isComplete    Boolean     @default(true)
-  student       Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  isComplete    Boolean        @default(true)
+  student       Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
   chunks        StoryChunk?
   comments      Comment[]
   likes         Like[]
   reports       Report[]
+  favorites     favorites[]
+  hidenStories  hidenStories[]
 
   @@index([studentId])
 }
@@ -248,6 +256,34 @@ model Like {
   @@index([storyId])
   @@index([studentId])
   @@index([parentId])
+}
+
+model favorites {
+  id          String     @id @default(uuid())
+  createdAt   DateTime   @default(now())
+  // Make these optional and mutually exclusive
+  studentId   String?
+  student     Student?   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  therapistId String?
+  therapist   Therapist? @relation(fields: [therapistId], references: [id], onDelete: Cascade)
+  parentId    String?
+  parent      Parent?    @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  storyId     String
+  story       Story      @relation(fields: [storyId], references: [id], onDelete: Cascade)
+}
+
+model hidenStories {
+  id          String     @id @default(uuid())
+  createdAt   DateTime   @default(now())
+  // Make these optional and mutually exclusive
+  studentId   String?
+  student     Student?   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  therapistId String?
+  therapist   Therapist? @relation(fields: [therapistId], references: [id], onDelete: Cascade)
+  parentId    String?
+  parent      Parent?    @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  storyId     String
+  story       Story      @relation(fields: [storyId], references: [id], onDelete: Cascade)
 }
 
 model Blog {

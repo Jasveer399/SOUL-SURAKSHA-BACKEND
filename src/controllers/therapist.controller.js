@@ -433,8 +433,6 @@ const loginTherapist = async (req, res) => {
       });
     }
 
-    console.log("therapist: >>", therapist);
-
     if (therapist && !therapist.isTherapistVerifiedByAdmin) {
       return res.status(401).json({
         message: "Therapist account is not verified by admin yet",

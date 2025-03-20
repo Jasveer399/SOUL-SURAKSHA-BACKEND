@@ -290,37 +290,58 @@ const getStories = async (req, res) => {
     // Validate and parse query parameters
     const { page, limit } = StoryPaginationSchema.parse(req.query);
     const userId = req.user?.id || null;
-    const role = req.role || null;
+    const role = req.user?.userType || req.role || null;
 
     // Calculate pagination details
     const pageNumber = Math.max(page, 1);
     const pageSize = Math.min(limit, 10); // Ensure max 10 posts per request
     const skip = (pageNumber - 1) * pageSize;
 
-    // Create a filter to exclude stories reported by the current user
-    let reportFilter = {};
+    // Create filters to exclude stories reported or hidden by the current user
+    let filterConditions = {};
+
     if (userId && role) {
       // Define which stories to exclude based on user role
-      reportFilter = {
-        NOT: {
-          reports: {
-            some:
-              role === "student"
-                ? { studentReporterId: userId }
-                : role === "parent"
-                ? { parentReporterId: userId }
-                : role === "therapist"
-                ? { therapistReporterId: userId }
-                : undefined,
+      filterConditions = {
+        AND: [
+          // Filter out reported stories
+          {
+            NOT: {
+              reports: {
+                some:
+                  role === "student"
+                    ? { studentReporterId: userId }
+                    : role === "parent"
+                    ? { parentReporterId: userId }
+                    : role === "therapist"
+                    ? { therapistReporterId: userId }
+                    : undefined,
+              },
+            },
           },
-        },
+          // Filter out hidden stories
+          {
+            NOT: {
+              hidenStories: {
+                some:
+                  role === "student"
+                    ? { studentId: userId }
+                    : role === "parent"
+                    ? { parentId: userId }
+                    : role === "therapist"
+                    ? { therapistId: userId }
+                    : undefined,
+              },
+            },
+          },
+        ],
       };
     }
 
     // Fetch posts with pagination and detailed relations
     const [stories, totalStories] = await Promise.all([
       prisma.story.findMany({
-        where: reportFilter, // Apply the report filter
+        where: filterConditions, // Apply both report and hidden filters
         take: pageSize,
         skip: skip,
         orderBy: {
@@ -349,6 +370,20 @@ const getStories = async (req, res) => {
               },
             },
           }),
+          ...(userId && {
+            favorites: {
+              where: {
+                OR: [
+                  { studentId: role === "student" ? userId : undefined },
+                  { parentId: role === "parent" ? userId : undefined },
+                  { therapistId: role === "therapist" ? userId : undefined },
+                ],
+              },
+              select: {
+                id: true,
+              },
+            },
+          }),
           _count: {
             select: {
               comments: true,
@@ -358,7 +393,7 @@ const getStories = async (req, res) => {
         },
       }),
       prisma.story.count({
-        where: reportFilter, // Apply the same filter for accurate count
+        where: filterConditions, // Apply the same filters for accurate count
       }),
     ]);
 
@@ -374,6 +409,7 @@ const getStories = async (req, res) => {
         commentCount: story._count.comments,
         likeCount: story._count.likes,
         isLiked: userId ? story.likes?.length > 0 : false,
+        isFavorite: userId ? story.favorites?.length > 0 : false,
       })),
       pagination: {
         currentPage: pageNumber,
@@ -1375,6 +1411,157 @@ const reportStory = async (req, res) => {
   }
 };
 
+const toggleFavoriteStory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userType } = req.user;
+    const userId = req.user.id;
+    const story = await prisma.story.findUnique({
+      where: { id },
+    });
+
+    if (!story) {
+      return res.status(404).json({
+        message: "Story not found",
+        status: false,
+      });
+    }
+
+    // Determine user field based on userType
+    let userField = {};
+    if (userType === "student") {
+      userField = { studentId: userId };
+    } else if (userType === "therapist") {
+      userField = { therapistId: userId };
+    } else if (userType === "parent") {
+      userField = { parentId: userId };
+    } else {
+      return res.status(400).json({
+        message: "Invalid user type",
+        status: false,
+      });
+    }
+
+    // Check if already favorited
+    const existingFavorite = await prisma.favorites.findFirst({
+      where: {
+        storyId: id,
+        ...userField,
+      },
+    });
+
+    if (existingFavorite) {
+      await prisma.favorites.delete({
+        where: {
+          id: existingFavorite.id,
+        },
+      });
+      return res.status(200).json({
+        message: "Story removed from favorites successfully",
+        isFavorite: false,
+        status: true,
+      });
+    }
+
+    // Add to favorites
+    const favoriteStory = await prisma.favorites.create({
+      data: {
+        storyId: id,
+        ...userField,
+      },
+    });
+
+    return res.status(201).json({
+      message: "Story added to favorites successfully",
+      isFavorite: true,
+      status: true,
+      favoriteStory,
+    });
+  } catch (error) {
+    console.log("Error adding favorite story:", error);
+    res.status(500).json({
+      message: "Failed to add favorite story",
+      status: false,
+      error: error.message,
+    });
+  }
+};
+
+const hideStory = async (req, res) => {
+  try {
+    const { storyId } = req.params;
+    const user = req.user;
+
+    // Verify the story exists
+    const story = await prisma.story.findUnique({
+      where: { id: storyId },
+    });
+
+    if (!story) {
+      return res.status(404).json({
+        message: "Story not found",
+        status: false,
+      });
+    }
+
+    // Check if this user has already hidden this story
+    const existingHide = await prisma.hidenStories.findFirst({
+      where: {
+        storyId,
+        OR: [
+          { studentId: user.userType === "student" ? user.id : undefined },
+          { parentId: user.userType === "parent" ? user.id : undefined },
+          { therapistId: user.userType === "therapist" ? user.id : undefined },
+        ],
+      },
+    });
+
+    if (existingHide) {
+      return res.status(400).json({
+        message: "Story is already hidden for this user",
+        status: false,
+      });
+    }
+
+    // Determine the user type and create the hide record
+    const hideData = {
+      storyId,
+    };
+
+    // Add the appropriate user ID based on user type
+    if (user.userType === "student") {
+      hideData.studentId = user.id;
+    } else if (user.userType === "parent") {
+      hideData.parentId = user.id;
+    } else if (user.userType === "therapist") {
+      hideData.therapistId = user.id;
+    } else {
+      return res.status(400).json({
+        message: "Invalid user type for hiding stories",
+        status: false,
+      });
+    }
+
+    // Create the hide entry
+    const hiddenStory = await prisma.hidenStories.create({
+      data: hideData,
+    });
+
+    return res.status(201).json({
+      message: "Story hidden successfully",
+      status: true,
+      hidden: hiddenStory,
+    });
+  } catch (error) {
+    console.error("Error hiding story:", error);
+    return res.status(500).json({
+      message: "Failed to hide story",
+      status: false,
+      error: error.message,
+    });
+  }
+};
+
 const getReportedStories = async (req, res) => {
   try {
     const reportedStories = await prisma.report.findMany({
@@ -1482,6 +1669,8 @@ export {
   getTopThreeLikedStoryes,
   getSpecificStory, // Export the new function
   reportStory,
+  hideStory,
+  toggleFavoriteStory,
   getReportedStories,
   getReportedStory,
 };

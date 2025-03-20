@@ -14,6 +14,8 @@ import {
   getTopThreeLikedStoryes,
   reportStory,
   toggleStoryLike,
+  toggleFavoriteStory,
+  hideStory,
 } from "../controllers/story.controller.js";
 
 const router = Router();
@@ -36,10 +38,7 @@ router.get(
   verifyJWT(["student"]),
   getCurrentUserStories
 );
-router.get(
-  "/getSpecificStory/:storyId",
-  getSpecificStory
-);
+router.get("/getSpecificStory/:storyId", getSpecificStory);
 router.post(
   "/like/:storyId",
   verifyJWT(["student", "therapist", "parent"]),
@@ -47,12 +46,22 @@ router.post(
 );
 router.get("/getStoryComments", getStoryComments);
 router.get("/getTopThreeLikedStoryes", getTopThreeLikedStoryes);
+
+router.get("/getReportedStories", getReportedStories);
+router.get("/getReportedStory/:id", getReportedStory);
 router.post(
   "/reportStory/:storyId",
   verifyJWT(["student", "therapist", "parent"]),
   reportStory
 );
-router.get("/getReportedStories", getReportedStories);
-router.get("/getReportedStory/:id", getReportedStory);
-
+router.post(
+  "/toggleFavoriteStory/:id",
+  verifyJWT(["student", "therapist", "parent"]),
+  toggleFavoriteStory
+);
+router.post(
+  "/hideStory/:storyId",
+  verifyJWT(["student", "therapist", "parent"]),
+  hideStory
+);
 export { router as storyRoutes };
