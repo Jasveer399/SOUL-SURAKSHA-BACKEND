@@ -610,6 +610,71 @@ const googleOauthHandler = async (req, res) => {
   }
 };
 
+const googleOauthMobileHandler = async (req, res) => {
+  try {
+    const { email, userType, photoUrl, displayName } = req.body;
+    const googleUser = {
+      email,
+      name: displayName,
+      given_name: displayName,
+      picture: photoUrl,
+    };
+    const existingStudent = await prisma.student.findUnique({
+      where: { email: googleUser.email },
+    });
+
+    const existingParent = await prisma.parent.findUnique({
+      where: { email: googleUser.email },
+    });
+
+    let result;
+    if (existingStudent || existingParent) {
+      result = await handleGoogleSignin(
+        googleUser,
+        userType,
+        existingStudent,
+        existingParent
+      );
+    } else {
+      result = await handleGoogleSignup(googleUser, userType);
+    }
+    if (!result) {
+      return res.status(400).json({
+        status: false,
+        message: "Error processing request. Please try again.",
+      });
+    } else {
+      return res.status(200).json({
+        status: true,
+        ...result,
+      });
+    }
+  } catch (error) {
+    console.error("Error in googleOauthHandler:", error);
+
+    let errorMessage;
+    let statusCode = 400;
+
+    switch (error.message) {
+      case "Email already registered":
+        errorMessage =
+          "This email is already registered with a different account type.";
+        break;
+      case "Invalid user type":
+        errorMessage =
+          "Invalid user type for this account Or Email already registered with a different account type.";
+        break;
+      default:
+        errorMessage = "Error processing request. Please try again.";
+        statusCode = 500;
+    }
+    return res.status(statusCode).json({
+      status: false,
+      message: errorMessage,
+    });
+  }
+};
+
 const handleGoogleSignin = async (
   googleUser,
   requestedUserType,
@@ -1124,6 +1189,7 @@ export {
   loginUser,
   editUser,
   googleOauthHandler,
+  googleOauthMobileHandler,
   createUserAndGetOtp,
   verifyOtp,
   sendEmailOtp, // Add this

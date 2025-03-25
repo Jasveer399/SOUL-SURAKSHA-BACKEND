@@ -213,6 +213,32 @@ const getGoogleUser = async ({ id_token, access_token }) => {
   }
 };
 
+const googleOAuth = async (req, res) => {
+  try {
+    const { id_token, access_token, userType } = req.body;
+
+    // Verify Google tokens (similar to your existing getGoogleUser function)
+    const googleUser = await getGoogleUser({
+      id_token,
+      access_token,
+    });
+
+    // Your existing user registration/login logic
+    const user = await findOrCreateUser({
+      email: googleUser.email,
+      name: googleUser.name,
+      userType,
+    });
+
+    // Generate access token
+    const accessToken = generateAccessToken(user);
+
+    res.json({ accessToken });
+  } catch (error) {
+    res.status(400).json({ message: "Google OAuth failed" });
+  }
+};
+
 const isAllDigits = (str) => /^\d+$/.test(str);
 export {
   generateBlogContext,

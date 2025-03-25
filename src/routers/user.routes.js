@@ -10,6 +10,7 @@ import {
   verifyOtp,
   sendEmailOtp,
   verifyEmailOtp,
+  googleOauthMobileHandler,
 } from "../controllers/user.controller.js";
 import { validateUserType } from "../middleware/validateUserType.js";
 
@@ -30,6 +31,7 @@ router.put(
 );
 
 router.get("/googleAuth", googleOauthHandler);
+router.post("/googleOauthMobile", googleOauthMobileHandler);
 router.post("/createUserAndGetOtp", createUserAndGetOtp);
 router.post("/verifyOtp", verifyOtp);
 router.post("/send-email-otp", sendEmailOtp);
