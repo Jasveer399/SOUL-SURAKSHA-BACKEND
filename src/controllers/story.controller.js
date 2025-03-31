@@ -1657,6 +1657,112 @@ const getReportedStory = async (req, res) => {
     });
   }
 };
+
+const getFavoriteStories = async (req, res) => {
+  try {
+    const { page, limit } = StoryPaginationSchema.parse(req.query);
+    const userId = req.user?.id || null;
+    const role = req.user?.userType || req.role || null;
+
+    // Validate user is authenticated
+    if (!userId || !role) {
+      return res.status(401).json({
+        message: "Authentication required to view favorite stories",
+        status: false,
+      });
+    }
+
+    // Calculate pagination details
+    const pageNumber = Math.max(page, 1);
+    const pageSize = Math.min(limit, 10); // Ensure max 10 posts per request
+    const skip = (pageNumber - 1) * pageSize;
+
+    // Create user role-specific condition
+    const userCondition = {
+      ...(role === "student" && { studentId: userId }),
+      ...(role === "parent" && { parentId: userId }),
+      ...(role === "therapist" && { therapistId: userId }),
+    };
+
+    // First find favorite entries for the user
+    const [favoriteEntries, totalFavorites] = await Promise.all([
+      prisma.favorites.findMany({
+        where: userCondition,
+        take: pageSize,
+        skip: skip,
+        orderBy: {
+          createdAt: "desc", // Most recent favorites first
+        },
+        include: {
+          story: {
+            include: {
+              student: {
+                select: {
+                  id: true,
+                  userName: true,
+                  studentImage: true,
+                },
+              },
+              likes: {
+                where: userCondition,
+                select: {
+                  id: true,
+                },
+              },
+              _count: {
+                select: {
+                  comments: true,
+                  likes: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+      prisma.favorites.count({
+        where: userCondition,
+      }),
+    ]);
+
+    // Extract and format stories from favorite entries
+    const stories = favoriteEntries.map((entry) => {
+      const story = entry.story;
+      return {
+        ...story,
+        timeAgo: timeAgo(story.createdAt),
+        commentCount: story._count.comments,
+        likeCount: story._count.likes,
+        isLiked: story.likes?.length > 0,
+        isFavorite: true, // These are all favorites by definition
+      };
+    });
+
+    // Calculate pagination metadata
+    const totalPages = Math.ceil(totalFavorites / pageSize);
+    const hasNextPage = pageNumber < totalPages;
+    const hasPreviousPage = pageNumber > 1;
+
+    return res.status(200).json({
+      data: stories,
+      pagination: {
+        currentPage: pageNumber,
+        pageSize,
+        totalStories: totalFavorites,
+        totalPages,
+        hasNextPage,
+        hasPreviousPage,
+      },
+      message: "Favorite stories retrieved successfully",
+      status: true,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to get favorite stories",
+      status: false,
+      error: error.message,
+    });
+  }
+};
 export {
   createStory,
   getStories,
@@ -1673,4 +1779,5 @@ export {
   toggleFavoriteStory,
   getReportedStories,
   getReportedStory,
+  getFavoriteStories,
 };

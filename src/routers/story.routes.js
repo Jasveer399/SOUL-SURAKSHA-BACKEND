@@ -16,6 +16,7 @@ import {
   toggleStoryLike,
   toggleFavoriteStory,
   hideStory,
+  getFavoriteStories,
 } from "../controllers/story.controller.js";
 
 const router = Router();
@@ -64,4 +65,5 @@ router.post(
   verifyJWT(["student", "therapist", "parent"]),
   hideStory
 );
+router.get("/getFavoriteStories", verifyJWT(["student"]), getFavoriteStories);
 export { router as storyRoutes };
